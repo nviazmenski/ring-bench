@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0906">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ring Bench">
+<title>Ring Bench</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230B0906'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%23D4AF5A' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230B0906'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%23D4AF5A' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="manifest" id="mf">
+<style>
+:root{
+  --case:#0B0906; --panel:#15110B; --panel2:#1E1810; --line:#332A1D; --line2:#241E14;
+  --bezel:#2A2216; --lcdbg:#120D06; --lcdtop:#241A0A; --lcd:#F5C96B; --lcddim:#8A6E33;
+  --lcdline:rgba(245,201,107,.13); --glow1:rgba(245,201,107,.30); --glow2:rgba(245,201,107,.45);
+  --btn1:#40320F; --btn2:#231B0A;
+  --gold:#D4AF5A; --goldhi:#EBCB80; --text:#DCD0B4; --dim:#8A8069;
+  --good:#8FD9A8; --warn:#D9A94A; --bad:#C9603F; --cool:#7FA8C4;
+  --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Helvetica Neue',Inter,system-ui,sans-serif;
+}
+/* the panel takes the colour of the metal on it */
+body[data-metal="silver"]{
+  --case:#070A0D; --panel:#0E1418; --panel2:#151D23; --line:#28343D; --line2:#1B242A;
+  --bezel:#1D2830; --lcdbg:#070C10; --lcdtop:#0F1D26; --lcd:#CFE7F5; --lcddim:#5A7484;
+  --lcdline:rgba(207,231,245,.14); --glow1:rgba(207,231,245,.28); --glow2:rgba(207,231,245,.42);
+  --btn1:#22343F; --btn2:#121C23;
+  --gold:#9FB8C9; --goldhi:#DDEDF7; --text:#C4D2DC; --dim:#71828E;
+  --cool:#C8A87F;
+}
+body[data-metal="base"]{
+  --case:#0C0806; --panel:#17100B; --panel2:#20170F; --line:#3A2A1C; --line2:#251A11;
+  --bezel:#2C1E13; --lcdbg:#120B06; --lcdtop:#2A170A; --lcd:#F0A768; --lcddim:#8A5A31;
+  --lcdline:rgba(240,167,104,.13); --glow1:rgba(240,167,104,.30); --glow2:rgba(240,167,104,.45);
+  --btn1:#412714; --btn2:#241408;
+  --gold:#C98A50; --goldhi:#E9B583; --text:#D8C3AE; --dim:#8C7761;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--case);color:var(--text);font-family:var(--sans);
+  transition:background-color .45s ease,color .45s ease;
+  font-size:17px;line-height:1.6;
+  padding:calc(14px + env(safe-area-inset-top)) 14px calc(34px + env(safe-area-inset-bottom));}
+.device{max-width:680px;margin:0 auto}
+
+/* ── head ── */
+.brand{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.brand h1{font-family:var(--serif);font-size:19px;font-weight:400;letter-spacing:.05em;margin:0;color:var(--goldhi)}
+.brand span{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--dim);opacity:.7;text-transform:uppercase}
+.coinsel{width:100%;background:var(--panel2);color:var(--goldhi);border:1px solid var(--line);
+  border-radius:9px;padding:14px 38px 14px 15px;font-family:var(--serif);font-size:19px;
+  -webkit-appearance:none;appearance:none;margin-bottom:12px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(135deg,var(--gold) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+
+/* ── the readout ── */
+.lcd{position:relative;overflow:hidden;border-radius:12px;padding:18px 18px 14px;
+  border:1px solid var(--bezel);
+  background:
+    repeating-linear-gradient(0deg,rgba(0,0,0,.20) 0 1px,transparent 1px 3px),
+    radial-gradient(130% 110% at 50% -10%,var(--lcdtop) 0%,var(--lcdbg) 72%);
+  box-shadow:inset 0 3px 18px rgba(0,0,0,.92),inset 0 0 0 1px var(--lcdline);transition:background .45s ease}
+.lcdlab{font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--lcddim);margin-bottom:2px}
+.freq{font-family:var(--mono);font-weight:600;font-size:clamp(48px,15vw,76px);line-height:1;
+  letter-spacing:-.03em;color:var(--lcd);text-shadow:0 0 18px var(--glow1),0 0 4px var(--glow2)}
+.freq em{font-style:normal;font-size:.28em;letter-spacing:.12em;color:var(--lcddim);margin-left:.35em;text-shadow:none}
+.pitch{font-family:var(--mono);font-size:14px;letter-spacing:.08em;color:var(--lcddim);margin-top:2px}
+.cells{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;
+  border-top:1px solid var(--lcdline);padding-top:11px}
+.cells div{text-align:left}
+.cells b{display:block;font-family:var(--mono);font-size:15px;font-weight:500;color:var(--lcd);opacity:.88}
+.cells span{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--lcddim)}
+.meas{display:flex;align-items:center;gap:9px;margin-top:12px;padding-top:10px;
+  border-top:1px solid var(--lcdline);font-family:var(--mono);font-size:13px;color:var(--lcddim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--lcddim);flex:none}
+.dot.ok{background:var(--good);box-shadow:0 0 8px rgba(143,217,168,.6)}
+.dot.mid{background:var(--warn);box-shadow:0 0 8px rgba(217,169,74,.6)}
+.dot.no{background:var(--bad);box-shadow:0 0 8px rgba(201,96,63,.6)}
+#upd{border:1px solid var(--gold);background:var(--panel2);border-radius:9px;padding:12px 14px;
+  margin:0 0 16px;font-size:14px;color:var(--goldhi);text-align:center;cursor:pointer}
+#tpwarn{border:1px solid var(--bad);background:#2A130D;border-radius:9px;padding:11px 14px;
+  margin:0 0 16px;font-family:var(--mono);font-size:13px;color:#F0B49C;text-align:center}
+.caveat{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);opacity:.7;text-align:center;margin:9px 0 14px}
+
+/* ── transport ── */
+.transport{display:grid;grid-template-columns:1fr auto auto;gap:9px;margin-bottom:16px}
+button{font-family:var(--sans);font-size:15px;letter-spacing:.05em;background:var(--panel2);
+  color:var(--text);border:1px solid var(--line);border-radius:9px;padding:15px 16px;cursor:pointer}
+button:active{background:#2A2317;transform:translateY(1px)}
+button:focus-visible,select:focus,input:focus{outline:2px solid var(--gold);outline-offset:2px}
+.play{background:linear-gradient(180deg,var(--btn1),var(--btn2));border-color:var(--gold);color:var(--goldhi);
+  font-size:16px;letter-spacing:.09em;text-transform:uppercase}
+.transport button:not(.play){min-width:62px;font-family:var(--mono);font-size:14px}
+
+/* ── tabs ── */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:16px}
+.tabs button{background:transparent;border:none;border-radius:7px;padding:11px 6px;
+  font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.tabs button.on{background:var(--panel2);color:var(--goldhi);box-shadow:inset 0 0 0 1px var(--line)}
+.pane[hidden]{display:none}
+
+/* ── panel content ── */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.cardhead{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
+  margin:0 0 13px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
+label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 6px}
+select,input[type=number]{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:12px;font-family:var(--mono);font-size:16px;-webkit-appearance:none;appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(135deg,var(--gold) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:13px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:13px}
+.full{margin-bottom:13px}
+.btnrow{display:flex;gap:9px;flex-wrap:wrap}
+.btnrow button{flex:1 1 auto}
+button.wide{width:100%;padding:17px;font-size:15px;letter-spacing:.11em;text-transform:uppercase}
+button.primary{background:linear-gradient(180deg,var(--btn1),var(--btn2));border-color:var(--gold);color:var(--goldhi)}
+button.armed{background:linear-gradient(180deg,#4A2318,#2C130C);border-color:var(--bad);color:#F0B49C}
+
+/* ── mode ladder ── */
+.ladder{display:flex;flex-direction:column;gap:2px}
+.rung{display:grid;grid-template-columns:52px 1fr 78px 54px;align-items:center;gap:10px;
+  padding:9px 0;border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:14px}
+.rung:last-child{border-bottom:none}
+.rung .m{color:var(--dim);font-size:13px}
+.rung .hz{text-align:right;color:var(--goldhi)}
+.rung .tt{text-align:right;color:var(--dim);font-size:12px}
+.bar{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--btn1),var(--gold))}
+.rung.dead{opacity:.42}
+
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13.5px}
+th{text-align:left;font-family:var(--sans);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--dim);font-weight:400;padding:0 0 8px;border-bottom:1px solid var(--line2)}
+td{padding:8px 0;border-bottom:1px solid var(--line2)}
+td.num{text-align:right;color:var(--goldhi)}
+tr:last-child td{border-bottom:none}
+.meter{height:9px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:12px 0 4px}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--btn1),var(--gold),var(--bad));width:0%;transition:width .05s linear}
+canvas{width:100%;display:block;border-radius:8px;background:#0A0805;border:1px solid var(--line2)}
+.status{font-family:var(--mono);font-size:12px;color:var(--dim);min-height:18px;margin-top:10px}
+.status.live{color:var(--goldhi)}
+.note{font-size:13px;color:var(--dim);line-height:1.6}
+.note b{color:var(--text);font-weight:600}
+.interval{font-family:var(--mono);font-size:12.5px;color:var(--cool);line-height:1.6}
+.verdict{border-radius:9px;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line)}
+.v-good{background:#12200F;border-color:#3F6A44}
+.v-warn{background:#231B0B;border-color:#6E5620}
+.v-bad{background:#2A130D;border-color:#7A3524}
+.vtitle{font-family:var(--serif);font-size:19px;margin:0 0 3px}
+.v-good .vtitle{color:var(--good)} .v-warn .vtitle{color:var(--warn)} .v-bad .vtitle{color:var(--bad)}
+.vsub{font-size:12.5px;color:var(--dim);margin:0}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.tag.ok{color:var(--good);border-color:#3F6A44}
+.tag.no{color:var(--bad);border-color:#7A3524}
+details{margin-top:11px}
+summary{cursor:pointer;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);padding:6px 0}
+hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
+ul.lim{margin:0;padding-left:17px}
+ul.lim li{margin-bottom:9px;font-size:13px;color:var(--dim)}
+ul.lim li b{color:var(--text)}
+.foot{text-align:center;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);opacity:.55;margin-top:26px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="device">
+
+  <div class="brand"><h1>Ring Bench</h1><span>free plate · flexural</span></div>
+  <select id="coin" class="coinsel"></select>
+
+  <!-- ═══ the readout ═══ -->
+  <div class="lcd">
+    <div class="lcdlab">Predicted fundamental &nbsp;(2,0)</div>
+    <div class="freq"><span id="f0">—</span><em>Hz</em></div>
+    <div class="pitch" id="pitch">&nbsp;</div>
+    <div class="cells">
+      <div><b id="cTau">—</b><span>&tau; ms</span></div>
+      <div><b id="cQ">—</b><span>Q</span></div>
+      <div><b id="cT">—</b><span id="cTlab">t mm</span></div>
+      <div><b id="cRho">—</b><span>&rho; g/cc</span></div>
+    </div>
+    <div class="meas"><i class="dot" id="mdot"></i><span id="measline">No reading — arm the microphone on Listen</span></div>
+  </div>
+  <div class="caveat">Material and structure · not a test of dies</div>
+
+  <!-- ═══ transport ═══ -->
+  <div class="transport">
+    <button id="playA" class="play">Play the ring</button>
+    <button id="playAB">A / B</button>
+    <button id="stop">Stop</button>
+  </div>
+
+  <div id="tpwarn" style="display:none"></div>
+  <div id="upd" style="display:none"></div>
+
+  <!-- ═══ tabs ═══ -->
+  <nav class="tabs">
+    <button data-p="bench" class="on">Bench</button>
+    <button data-p="listen">Listen</button>
+    <button data-p="specs">Specs</button>
+  </nav>
+
+  <!-- ═══ BENCH ═══ -->
+  <section class="pane" id="p-bench">
+    <div class="card">
+      <div class="cardhead">Mode ladder</div>
+      <div class="ladder" id="ladder"></div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead">Playback</div>
+      <div class="row">
+        <div><label for="grip">Support</label><select id="grip"></select></div>
+        <div><label for="trans">Transpose st</label><input id="trans" type="number" step="1" value="0" inputmode="decimal"></div>
+      </div>
+      <p class="note"><b>Leave this at zero unless you know why you are moving it.</b> It shifts playback only — never the measurement, never the score — but a synthesised ring an octave off the real one is the fastest way to talk yourself into a match that is not there. The panel turns red whenever it is non-zero. Phone speakers give up around 4 kHz, so if you must transpose to hear anything, use headphones instead and leave this alone.</p>
+    </div>
+
+    <div class="card">
+      <div class="cardhead">Comparison</div>
+      <div class="row">
+        <div><label for="cmpCoin">Coin</label><select id="cmpCoin"></select></div>
+        <div><label for="cmpAlloy">struck in</label><select id="cmpAlloy"></select></div>
+      </div>
+      <div id="cmpline" class="interval"></div>
+      <div class="btnrow" style="margin-top:13px">
+        <button id="playB">Play comparison</button>
+      </div>
+      <p class="note" style="margin-top:12px">Your planchet, wrong metal — mass follows density, so the comparison shows what the same disc would weigh in that alloy. It follows the coin under test until you point it somewhere else; set it back to the same coin and it starts following again. The interval is worth learning by ear, but the mass line underneath it is what actually catches the coin.</p>
+      <p class="note"><b>To check the bench against reality, use Britain.</b> In 1947 five denominations went from .500 silver to cupronickel with mass and diameter unchanged — a controlled experiment you can hold. Put a shilling on the panel and step the comparison through sterling, .500 and cupronickel. Predicted: 6,583 Hz, 7,967 Hz, 10,868 Hz. If a 1946 and a 1950 shilling do not land near those, the model is wrong and you should trust it less everywhere else.</p>
+    </div>
+  </section>
+
+  <!-- ═══ LISTEN ═══ -->
+  <section class="pane" id="p-listen" hidden>
+    <div class="card">
+      <button id="arm" class="wide primary">Arm microphone</button>
+      <div class="meter"><i id="lvl"></i></div>
+      <div id="status" class="status">Tap arm, allow the microphone, then strike the coin about 15 cm away.</div>
+      <canvas id="spec" height="190" style="margin-top:12px"></canvas>
+      <div class="row" style="margin-top:13px">
+        <div><label for="thresh">Trigger dB over floor</label><input id="thresh" type="number" step="1" value="18" inputmode="decimal"></div>
+        <div><label for="skip">Skip strike ms</label><input id="skip" type="number" step="1" value="8" inputmode="decimal"></div>
+      </div>
+      <div class="btnrow">
+        <button id="upload">Load a recording</button>
+        <button id="again">Clear reading</button>
+      </div>
+      <input id="file" type="file" accept="audio/*" style="display:none">
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <div class="cardhead">Reading</div>
+      <div id="verdict"></div>
+      <table><thead><tr><th>Check</th><th style="text-align:right">Result</th><th style="text-align:right">Pts</th></tr></thead>
+      <tbody id="score"></tbody></table>
+      <div id="fitline" class="note" style="margin-top:12px"></div>
+      <hr>
+      <table><thead><tr><th>Peak Hz</th><th style="text-align:right">Ratio</th><th style="text-align:right">Mode</th><th style="text-align:right">Error</th></tr></thead>
+      <tbody id="peaks"></tbody></table>
+      <div class="btnrow" style="margin-top:14px">
+        <button id="playMeasured">Play what was measured</button>
+        <button id="saveref" class="primary">Save as reference</button>
+      </div>
+      <div id="refline" class="note" style="margin-top:11px"></div>
+      <div class="btnrow" style="margin-top:9px"><button id="clearref">Clear reference</button></div>
+    </div>
+  </section>
+
+  <!-- ═══ SPECS ═══ -->
+  <section class="pane" id="p-specs" hidden>
+    <div class="card">
+      <div class="cardhead">Measured dimensions</div>
+      <div class="row3">
+        <div><label for="mass">Mass g</label><input id="mass" type="number" step="0.0001" inputmode="decimal"></div>
+        <div><label for="dia">Diameter mm</label><input id="dia" type="number" step="0.01" inputmode="decimal"></div>
+        <div><label for="qmat">Material Q</label><input id="qmat" type="number" step="100" value="2000" inputmode="decimal"></div>
+      </div>
+      <div class="full"><label for="alloy">Alloy</label><select id="alloy"></select></div>
+      <div class="row3">
+        <div><label for="tsrc">Thickness from</label><select id="tsrc">
+          <option value="mass">Mass and density</option>
+          <option value="caliper">Calipers</option>
+        </select></div>
+        <div><label for="trim">Rim reading mm</label><input id="trim" type="number" step="0.01" inputmode="decimal"></div>
+        <div><label for="rimf">Rim factor</label><input id="rimf" type="number" step="0.001" value="1.000" inputmode="decimal"></div>
+      </div>
+      <div class="row">
+        <div><label for="wear">Wear allowance %</label><input id="wear" type="number" step="0.5" value="0" inputmode="decimal"></div>
+        <div><label for="grade">Grade</label><select id="grade">
+          <option value="0">UNC / AU — as struck</option>
+          <option value="1">EF / VF — light</option>
+          <option value="3">F / VF — moderate</option>
+          <option value="5">G / VG — heavy</option>
+        </select></div>
+      </div>
+      <p class="note" style="margin-bottom:13px">Wear comes off the faces, so it is thickness that goes, and frequency follows thickness one for one. A worn coin therefore rings <b>flat</b> of the catalogue figure and can never ring sharp of it. This widens the acceptance band downward only. It does not move the prediction — a worn coin simply carries less information, and the panel should admit that rather than pretend to a precision it lost in circulation.</p>
+      <div id="calib" class="note" style="margin-bottom:13px"></div>
+      <p class="note">Use your own figures, not the catalogue's. Thickness is what the model needs; mass is one way to get it, calipers are the other. Switch below if you are working without a scale.</p>
+      <details>
+        <summary>Elastic constants</summary>
+        <div class="row" style="margin-top:10px">
+          <div><label for="emod">Young's modulus GPa</label><input id="emod" type="number" step="1" inputmode="decimal"></div>
+          <div><label for="nu">Poisson ratio</label><input id="nu" type="number" step="0.01" value="0.42" inputmode="decimal"></div>
+        </div>
+        <p class="note">Modulus is the largest single uncertainty in every absolute frequency here, roughly ±8%. Mode ratios are untouched by it.</p>
+      </details>
+      <details>
+        <summary>Q calibration for scoring</summary>
+        <div class="row" style="margin-top:10px">
+          <div><label for="qlo">No credit below</label><input id="qlo" type="number" step="10" value="80" inputmode="decimal"></div>
+          <div><label for="qhi">Full credit above</label><input id="qhi" type="number" step="10" value="450" inputmode="decimal"></div>
+        </div>
+        <p class="note">Q is the softest number on this bench, worse than modulus. Strike three coins you are certain of, take the lowest Q you see, put the floor under it.</p>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="cardhead">What this establishes, and what it does not</div>
+      <ul class="lim">
+        <li><b>A high score means the metal is solid, homogeneous, and of about the right stiffness-to-density ratio for the declared alloy and geometry.</b> That is the whole claim. It is not a statement about authenticity.</li>
+        <li><b>It cannot detect a counterfeit struck from correct-fineness gold.</b> Right alloy, right mass, right diameter means right ring. That is the fake that matters for the Yugoslav dukats, restruck in quantity and copied in correct metal to this day. Only dies, edge and strike character will help there.</li>
+        <li><b>Pitch alone is degenerate; pitch with two caliper readings is not.</b> Frequency goes as thickness over radius squared, times √(E/ρ). Give it diameter and thickness and the only unknown left is √(E/ρ) — which is the material signature, and the whole point. Without a dimension the equation has two unknowns and no answer, however clean the capture.</li>
+        <li><b>Calipers, not a scale.</b> Mass was only ever a route to thickness. A pocket caliper gives thickness directly, weighs under 100 g, costs about twenty dollars, and raises no eyebrows at a border. Set <i>Thickness from</i> to Calipers on Specs and the bench closes with no scale involved.</li>
+        <li><b>The rim factor is the one thing to prepare at home.</b> A caliper reads the rim; the plate vibrates on the mean, and on a struck coin those differ. So once, on a piece you trust and have weighed, enter both figures and Specs hands you the ratio. Write it on the flip. The factor is a property of the type, so one calibration covers every example of it — and in the field you carry the number, not the scale.</li>
+        <li><b>The bench cannot name a metal, and you should not either.</b> A fundamental gives you one number, √(E/ρ). Several alloys share any given value of it, which is why the Reading tab lists everything consistent rather than picking a culprit. "Sounds like cupronickel" is a claim the physics does not support; "does not sit where .900 silver should" is one it does. Say the second thing to a seller, never the first.</li>
+        <li><b>Circulated coins ring flat, and heavily circulated ones ring well flat.</b> Wear removes metal from the faces, frequency follows thickness one for one, and a Good-grade crown can be several percent under nominal. Set the grade on Specs before reading anything worn — otherwise you are comparing a coin against a catalogue weight it has not carried in a century. Wear can only ever lower the pitch, so the allowance widens the band downward and leaves the sharp side alone.</li>
+        <li><b>Cleaning does not change the ring.</b> Even brutal polishing takes microns and leaves mass, thickness and bulk elasticity alone. A blazing, hairlined, obviously-scrubbed coin should ring exactly like an untouched one. If a cleaned piece reads wrong, the cleaning is not the reason — look at wear, at your rim factor, or at the transpose field.</li>
+        <li><b>A magnet is the other thing worth carrying.</b> Smaller than the calipers, and it settles the steel question outright — the failure this bench handles worst, and the one you say you actually meet.</li>
+        <li><b>The mode-ratio check is the one test here that owes nothing to the alloy.</b> Ratios depend on shape and Poisson ratio only. A plated or cored composite bends as a laminate and the ratios drift.</li>
+        <li><b>A reference coin you trust beats every number on this panel.</b> Save a reading from a piece you are certain of and the material terms cancel; tolerance collapses from ±8% to ±1.5%.</li>
+        <li><b>The synthesised ring is a model, not a recording.</b> Six decaying sinusoids off a flat disc. Real rims, relief and countermarks pull modes down a few percent and split degenerate pairs into audible doublets.</li>
+        <li><b>The contact-damping constants are fitted, not derived.</b> They were chosen so the model behaves plausibly and carry no authority.</li>
+        <li><b>Several coins here are acoustically indistinguishable.</b> Serbia 20 dinara 1879 and 1882 and Yugoslavia 20 dinara 1925 share mass, diameter and alloy exactly. The $10 Eagle sits about 5% under the Sovereign and the Serbian 20 dinara, and the $1 Type 2/3 lands within 3% of both — all inside the model's own ±8% modulus band, so pitch alone cannot separate them.</li>
+        <li><b>The 40% clad half dollar is the one coin here the model is knowingly wrong about.</b> It is a sandwich — .800 silver faces over a .209 silver core — and the panel treats it as homogeneous .400. Its real modes will not sit where the ladder says. That makes it the best thing in the library to strike: it is a genuine laminate, so it is where you can watch the mode-ratio check earn its keep.</li>
+        <li><b>For a steel core, put the microphone down and pick up a magnet.</b> Steel is the usual filler in faked crowns and dollars, and it is the one case where this whole instrument is the wrong tool. Mild steel and ferritic stainless are strongly ferromagnetic; a two-dollar magnet gives a binary answer in a second, where the ring gives you a number to interpret. Use the bench on it only to know what you are listening for.</li>
+        <li><b>A steel fake cannot satisfy mass and dimensions at once, and the gap is not subtle.</b> At the right diameter and thickness it comes in about 24% light. If the faker adds thickness to make weight, it ends up roughly 32% thicker — which a caliper reads directly, and which the bench then hears as about 1,435 cents sharp, more than an octave. Working from calipers you catch it twice, on the dimension and on the pitch. Order of operations in the field: magnet, calipers, then ring.</li>
+        <li><b>Plating does not change the ring.</b> A silver wash over a steel core is a few microns and contributes nothing to bending stiffness, so the panel treats a plated steel fake as plain steel and that is roughly right. A thick silver <i>shell</i> over a core is a different object — a laminate — and the mode ratios are where that shows up, not the fundamental.</li>
+        <li><b>Steel figures here are book values for the metal, not for any coin.</b> Density is entered directly rather than derived, because the mixture rule handles austenitic packing badly. Modulus near 200 GPa and ν near 0.29 are generic structural-steel numbers; a specific fake could sit some way off.</li>
+        <li><b>Cupronickel and clad are calibration targets, not coins to authenticate.</b> They are here so you can check the bench against pieces whose answer you already know. A 1947 British shilling should sit roughly 868 cents over its 1946 sterling twin, and a modern clad quarter 542 cents over a 1964 one. Those are the numbers to test the app on before you point it at anything valuable.</li>
+        <li><b>US clad and the 40% half are laminates, and the model treats them as homogeneous.</b> The stiff outer layers sit farthest from the neutral axis, so real bending stiffness runs above the volume average and the true pitch will come in over the prediction. Expect the clad coins to read sharp. That error is not a defect to correct — it is the signature the mode-ratio check exists to find.</li>
+        <li><b>Silver moduli here are estimates, and looser than the gold ones.</b> I have no measured figures for these specific coin alloys, so E is interpolated between silver and copper and ν set near 0.37. Treat silver absolute pitch as worse than ±8%, and lean harder on ratios and on a saved reference.</li>
+        <li><b>United States gold before 1834 is a different standard.</b> The library's US entries are the .900 fine issues set by the Act of 1837. Earlier pieces run .9167 and heavier, so the panel's alloy default would be wrong for them — change it on Specs before reading anything.</li>
+        <li><b>Turn off voice processing.</b> The listener asks for raw capture, but a headset or call-optimised path destroys the 5–14 kHz partials and every reading will look wrong.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="foot">Leissa eigenvalues · density by elemental mass fraction</div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+
+/* ───────── alloys: 1/ρ = Σ wᵢ/ρᵢ ─────────
+   E and ν are estimates, not measured constants for these specific coin
+   alloys. They are the largest source of error in every absolute frequency
+   on the panel and both are editable on Specs.                            */
+const EL={Au:19.30,Ag:10.49,Cu:8.96,Pt:21.45,Pd:12.02,Zn:7.14,Ni:8.90,Fe:7.87,Cr:7.19};
+const ALLOYS={
+  au900cu:{n:".900 Au / .100 Cu — LMU, Imperial Russia",f:{Au:.900,Cu:.100},E:85,nu:.42,mt:"gold"},
+  au986cu:{n:".986 Au / .014 Cu — ducat standard",      f:{Au:.986,Cu:.014},E:80,nu:.42,mt:"gold"},
+  au9661 :{n:".9661 Au / bal Cu — Numista, YU ducat",   f:{Au:.9661,Cu:.0339},E:80,nu:.42,mt:"gold"},
+  au9167 :{n:".9167 Au / Ag / Cu — crown gold, 22k",    f:{Au:.9167,Ag:.03,Cu:.0533},E:82,nu:.42,mt:"gold"},
+  au900ag:{n:".900 Au / .100 Ag",                       f:{Au:.900,Ag:.100},E:80,nu:.42,mt:"gold"},
+  au750  :{n:".750 Au / Ag / Cu — 18k, underfine",      f:{Au:.750,Ag:.10,Cu:.150},E:88,nu:.41,mt:"gold"},
+  au999  :{n:".9999 Au — fine",                         f:{Au:1.0},E:79,nu:.42,mt:"gold"},
+  ag999  :{n:".999 Ag — fine",                          f:{Ag:1.0},E:79,nu:.37,mt:"silver"},
+  ag925  :{n:".925 Ag / .075 Cu — sterling",            f:{Ag:.925,Cu:.075},E:80,nu:.37,mt:"silver"},
+  ag900  :{n:".900 Ag / .100 Cu — US & Russian coin",   f:{Ag:.900,Cu:.100},E:82,nu:.37,mt:"silver"},
+  ag835  :{n:".835 Ag / .165 Cu — LMU silver standard", f:{Ag:.835,Cu:.165},E:85,nu:.37,mt:"silver"},
+  ag833  :{n:".833 Ag / .167 Cu — thaler standard",     f:{Ag:.833,Cu:.167},E:85,nu:.37,mt:"silver"},
+  ag800  :{n:".800 Ag / .200 Cu",                       f:{Ag:.800,Cu:.200},E:87,nu:.37,mt:"silver"},
+  ag750  :{n:".750 Ag / .250 Cu — Yugoslav 1932–38",    f:{Ag:.750,Cu:.250},E:88,nu:.37,mt:"silver"},
+  ag500  :{n:".500 Ag / .500 Cu — RU billon, GB 1920–46",f:{Ag:.500,Cu:.500},E:96,nu:.36,mt:"silver"},
+  ag500yu:{n:".500 Ag / Cu / Ni / Zn — Yugoslav 1931",  f:{Ag:.50,Cu:.40,Ni:.05,Zn:.05},E:100,nu:.36,mt:"silver"},
+  ag400  :{n:".400 Ag nominal — US 40% clad (laminate)",f:{Ag:.400,Cu:.600},E:98,nu:.36,mt:"silver"},
+  cuni75 :{n:"cupronickel — 75 Cu / 25 Ni (UK 1947+)",  f:{Cu:.75,Ni:.25},E:145,nu:.33,mt:"base"},
+  cuni70 :{n:"cupronickel — 70 Cu / 30 Ni",             f:{Cu:.70,Ni:.30},E:152,nu:.33,mt:"base"},
+  usclad :{n:"US clad — 91.67 Cu / 8.33 Ni (laminate)", f:{Cu:.9167,Ni:.0833},E:125,nu:.34,mt:"base"},
+  nickel :{n:"nickel — pure",                           f:{Ni:1.0},E:200,nu:.31,mt:"base",mag:2},
+  steel  :{n:"steel — mild / low carbon",               f:{Fe:1.0},rho:7.85,E:200,nu:.29,mt:"base",mag:2},
+  ss430  :{n:"stainless 430 — ferritic",                f:{Fe:.83,Cr:.17},rho:7.70,E:200,nu:.29,mt:"base",mag:2},
+  ss304  :{n:"stainless 304 — austenitic",              f:{Fe:.74,Cr:.18,Ni:.08},rho:8.00,E:193,nu:.29,mt:"base",mag:1},
+  brass  :{n:"brass — 65 Cu / 35 Zn",                   f:{Cu:.65,Zn:.35},E:100,nu:.35,mt:"base"},
+};
+const dens=f=>1/Object.keys(f).reduce((s,k)=>s+f[k]/EL[k],0);
+/* mixture rule unless the alloy carries a measured density */
+const rhoOf=k=>ALLOYS[k].rho||dens(ALLOYS[k].f);
+
+/* ───────── coin library, by issuer ───────── */
+const COINS=[
+ {g:"Imperial Russia — gold",items:[
+  {n:"5 Roubles 1897–1911 · Y#62",   m:4.3013,  d:18.55, a:"au900cu"},
+  {n:"7½ Roubles 1897 · Y#63",       m:6.4516,  d:21.30, a:"au900cu"},
+  {n:"10 Roubles 1898–1911 · Y#64",  m:8.6026,  d:22.50, a:"au900cu"},
+  {n:"15 Roubles 1897 · Y#65",       m:12.9039, d:24.60, a:"au900cu"},
+ ]},
+ {g:"Imperial Russia — silver",items:[
+  {n:"1 Rouble 1886–1915 · Y#59/71", m:19.9960, d:33.65, a:"ag900"},
+  {n:"1 Rouble 1913 Romanov · Y#70", m:19.9960, d:33.65, a:"ag900"},
+  {n:"50 Kopeks 1896–1914 · Y#58",   m:9.9980,  d:26.75, a:"ag900"},
+  {n:"25 Kopeks 1896–1901 · Y#57",   m:4.9990,  d:23.00, a:"ag900"},
+  {n:"20 Kopeks · Y#22a",            m:3.6000,  d:22.00, a:"ag500"},
+  {n:"15 Kopeks · Y#21a",            m:2.7000,  d:19.70, a:"ag500"},
+  {n:"10 Kopeks · Y#20a",            m:1.8000,  d:17.50, a:"ag500"},
+  {n:"5 Kopeks · Y#19a",             m:0.9000,  d:15.10, a:"ag500"},
+ ]},
+ {g:"Serbia — gold",items:[
+  {n:"10 Dinara 1882 · KM#16",       m:3.2258,  d:19.00, a:"au900cu"},
+  {n:"20 Dinara 1879 · KM#14",       m:6.4516,  d:21.00, a:"au900cu"},
+  {n:"20 Dinara 1882 · KM#17",       m:6.4516,  d:21.00, a:"au900cu"},
+ ]},
+ {g:"Serbia — silver",items:[
+  {n:"50 Para 1875–1915 · KM#24",    m:2.5000,  d:18.00, a:"ag835"},
+  {n:"1 Dinar 1875–1915 · KM#25",    m:5.0000,  d:22.50, a:"ag835"},
+  {n:"2 Dinara 1875–1915 · KM#26",   m:10.0000, d:28.00, a:"ag835"},
+  {n:"5 Dinara 1879 · KM#12",        m:25.0000, d:37.00, a:"ag900"},
+  {n:"5 Dinara 1904 · KM#27",        m:25.0000, d:37.00, a:"ag900"},
+ ]},
+ {g:"Kingdom of Yugoslavia — gold",items:[
+  {n:"20 Dinara 1925 · KM#7",        m:6.4516,  d:21.00, a:"au900cu"},
+  {n:"1 Dukat 1931–34 · KM#12",      m:3.4909,  d:19.75, a:"au986cu"},
+  {n:"4 Dukata 1931–33 · KM#14",     m:13.9636, d:40.00, a:"au986cu"},
+ ]},
+ {g:"Kingdom of Yugoslavia — silver",items:[
+  {n:"10 Dinara 1931 · KM#10",       m:7.0000,  d:24.00, a:"ag500yu"},
+  {n:"20 Dinara 1931 · KM#11",       m:14.0000, d:31.00, a:"ag500yu"},
+  {n:"50 Dinara 1932 · KM#16",       m:23.3000, d:36.00, a:"ag750"},
+  {n:"20 Dinara 1938 · KM#23",       m:9.0000,  d:27.00, a:"ag750"},
+  {n:"50 Dinara 1938 · KM#24",       m:15.0000, d:31.00, a:"ag750"},
+ ]},
+ {g:"Austria and the ducat standard",items:[
+  {n:"1 Ducat",                      m:3.4909,  d:20.00, a:"au986cu"},
+  {n:"4 Ducat",                      m:13.9636, d:39.50, a:"au986cu"},
+  {n:"20 Corona",                    m:6.7752,  d:21.00, a:"au900cu"},
+  {n:"Maria Theresa Thaler 1780",    m:28.0668, d:39.50, a:"ag833"},
+ ]},
+ {g:"Britain — gold",items:[
+  {n:"Sovereign",                    m:7.9881,  d:22.05, a:"au9167"},
+  {n:"Half Sovereign",               m:3.9941,  d:19.30, a:"au9167"},
+ ]},
+ {g:"Britain — one planchet, three metals",items:[
+  {n:"Crown · 1816–1965",            m:28.2759, d:38.61, a:"ag925"},
+  {n:"Halfcrown · 1816–1967",        m:14.1380, d:32.31, a:"ag925"},
+  {n:"Florin · 1849–1970",           m:11.3104, d:28.50, a:"ag925"},
+  {n:"Shilling · 1816–1970",         m:5.6552,  d:23.50, a:"ag925"},
+  {n:"Sixpence · 1816–1970",         m:2.8276,  d:19.50, a:"ag925"},
+ ]},
+ {g:"Latin Monetary Union",items:[
+  {n:"20 Francs Vreneli",            m:6.4516,  d:21.00, a:"au900cu"},
+  {n:"20 Francs Rooster / Napoleon", m:6.4516,  d:21.00, a:"au900cu"},
+  {n:"Swiss 5 Francs · 1931–67",     m:15.0000, d:31.45, a:"ag835"},
+ ]},
+ {g:"United States — gold, pre-1933",items:[
+  {n:"$1 Gold Type 1 · 1849–54",       m:1.6718,  d:13.00, a:"au900cu"},
+  {n:"$1 Gold Type 2/3 · 1854–89",     m:1.6718,  d:14.86, a:"au900cu"},
+  {n:"$2½ Quarter Eagle · 1840–1929",  m:4.1795,  d:18.00, a:"au900cu"},
+  {n:"$3 Gold · 1854–89",              m:5.0154,  d:20.50, a:"au900cu"},
+  {n:"$5 Half Eagle · 1839–1929",      m:8.3591,  d:21.60, a:"au900cu"},
+  {n:"$10 Eagle · 1838–1933",          m:16.7181, d:27.00, a:"au900cu"},
+  {n:"$20 Double Eagle · 1850–1933",   m:33.4362, d:34.00, a:"au900cu"},
+ ]},
+ {g:"United States — silver and clad",items:[
+  {n:"Trade Dollar · 1873–85",         m:27.2155, d:38.10, a:"ag900"},
+  {n:"Seated Liberty Dollar · 1840–73",m:26.7296, d:38.10, a:"ag900"},
+  {n:"Morgan Dollar · 1878–1921",      m:26.7296, d:38.10, a:"ag900"},
+  {n:"Peace Dollar · 1921–35",         m:26.7296, d:38.10, a:"ag900"},
+  {n:"Half Dollar 90% · 1873–1964",    m:12.5000, d:30.60, a:"ag900"},
+  {n:"Half Dollar 40% clad · 1965–70", m:11.5000, d:30.60, a:"ag400"},
+  {n:"Quarter 90% · 1873–1964",        m:6.2500,  d:24.30, a:"ag900"},
+  {n:"Twenty Cents · 1875–78",         m:5.0000,  d:22.00, a:"ag900"},
+  {n:"Dime 90% · 1873–1964",           m:2.5000,  d:17.90, a:"ag900"},
+  {n:"Half Dollar clad · 1971–",       m:11.3400, d:30.61, a:"usclad"},
+  {n:"Quarter clad · 1965–",           m:5.6700,  d:24.26, a:"usclad"},
+  {n:"Dime clad · 1965–",              m:2.2680,  d:17.91, a:"usclad"},
+ ]},
+ {g:"Mexico",items:[
+  {n:"8 Reales, cap and rays · 1824–97", m:27.0700, d:39.00, a:"ag900"},
+ ]},
+ {g:"Modern bullion",items:[
+  {n:"Gold Eagle 1 oz",              m:33.931,  d:32.70, a:"au9167"},
+  {n:"Krugerrand 1 oz",              m:33.930,  d:32.77, a:"au9167"},
+  {n:"Maple Leaf 1 oz",              m:31.103,  d:30.00, a:"au999"},
+  {n:"Silver Eagle 1 oz",            m:31.103,  d:40.60, a:"ag999"},
+  {n:"Silver Maple 1 oz",            m:31.103,  d:38.00, a:"ag999"},
+ ]},
+];
+const flat=[];COINS.forEach(g=>g.items.forEach(c=>flat.push(c)));
+
+/* ───────── free circular plate, Leissa ─────────
+   f = (λ² h)/(2π a²) · √( E / (12(1−ν²)ρ) )
+   λ² is material-free, so ratios f_i/f_0 are a pure shape test.
+   centreNode: a nodal line passes through the centre — true for every mode
+   with at least one nodal diameter, false for the axisymmetric ones.      */
+const MODES=[
+ {id:"(2,0)",lam:5.253, centreNode:true },
+ {id:"(0,1)",lam:9.084, centreNode:false},
+ {id:"(3,0)",lam:12.23, centreNode:true },
+ {id:"(1,1)",lam:20.52, centreNode:true },
+ {id:"(4,0)",lam:21.60, centreNode:true },
+ {id:"(2,1)",lam:35.25, centreNode:true },
+];
+const RATIOS=MODES.map(m=>m.lam/MODES[0].lam);
+const SUPPORTS={
+ "tongs-rubber":{n:"Rubber-tipped tongs, centre", node:9000, anti:500},
+ "tongs-hard"  :{n:"Hard tongs, centre",          node:5000, anti:280},
+ "finger"      :{n:"Fingertip, centre",           node:4000, anti:200},
+ "rim"         :{n:"Rim pinch",                   node:900,  anti:900},
+ "table"       :{n:"Flat on a hard surface",      node:130,  anti:130},
+};
+
+function predict(mass,dia,rho,E,nu,qmat,sup,hmm){
+  const a=dia/2000, rhoSI=rho*1000;
+  /* thickness is what the model actually needs. Mass is only one way to get it;
+     a caliper reading times a rim factor is the other, and it needs no scale. */
+  const h = (hmm>0) ? hmm/1000 : (mass/1000)/rhoSI/(Math.PI*a*a);
+  const k=Math.sqrt(E*1e9/(12*(1-nu*nu)*rhoSI));
+  const S=SUPPORTS[sup]||SUPPORTS["tongs-rubber"];
+  const f=[],Q=[],tau=[],amp=[];
+  MODES.forEach((m,i)=>{
+    const fi=m.lam*h/(2*Math.PI*a*a)*k;
+    const qi=1/(1/qmat+1/(m.centreNode?S.node:S.anti));
+    f.push(fi);Q.push(qi);tau.push(qi/(Math.PI*fi));
+    amp.push(Math.pow(f[0]/fi,0.8));
+  });
+  return {h:h*1000,f,Q,tau,amp};
+}
+
+const NN=["C","C♯","D","E♭","E","F","F♯","G","A♭","A","B♭","B"];
+function noteOf(f){
+  const midi=69+12*Math.log2(f/440);
+  const r=Math.round(midi), cents=Math.round((midi-r)*100);
+  return NN[((r%12)+12)%12]+(Math.floor(r/12)-1)+(cents>=0?" +":" −")+Math.abs(cents)+"¢";
+}
+const sp=n=>n.toLocaleString("en-US",{useGrouping:true}).replace(/,/g,"\u2009");
+
+/* ───────── state ───────── */
+let sel=0, cmp=0, cmpLocked=false, reading=null, refs={}, store="none";
+const REFKEY="ringbench.refs";
+/* Two possible homes for saved references. A hosted page or home-screen app gets
+   localStorage. Inside a Claude artifact localStorage is inert, so window.storage
+   is used instead — it is async, hence the reload-then-rerender at boot.        */
+function saveRefs(){
+  const j=JSON.stringify(refs);
+  try{ localStorage.setItem(REFKEY,j); if(store==="none") store="local"; }catch(e){}
+  if(window.storage){ try{ window.storage.set(REFKEY,j); store="cloud"; }catch(e){} }
+}
+async function loadRefs(){
+  try{ const v=localStorage.getItem(REFKEY); if(v){refs=JSON.parse(v);store="local";} }catch(e){}
+  if(window.storage){
+    try{
+      const r=await window.storage.get(REFKEY);
+      if(r&&r.value) refs=Object.assign(refs,JSON.parse(r.value));
+      store="cloud";
+    }catch(e){ store="cloud"; }          /* key absent simply means nothing saved yet */
+  }
+  if(store==="none"){
+    try{ localStorage.setItem(REFKEY+".probe","1"); localStorage.removeItem(REFKEY+".probe"); store="local"; }
+    catch(e){ store="off"; }
+  }
+  render();
+}
+
+(function(){
+  ["coin","cmpCoin"].forEach(id=>{
+    const s=$(id);let i=0;
+    COINS.forEach(g=>{const og=document.createElement("optgroup");og.label=g.g;
+      g.items.forEach(c=>{const o=document.createElement("option");o.value=i++;o.textContent=c.n;og.appendChild(o);});
+      s.appendChild(og);});
+  });
+  ["alloy","cmpAlloy"].forEach(id=>{
+    const s=$(id);
+    Object.keys(ALLOYS).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=ALLOYS[k].n;s.appendChild(o);});
+  });
+  Object.keys(SUPPORTS).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=SUPPORTS[k].n;$("grip").appendChild(o);});
+})();
+
+function loadCoin(i){
+  sel=i;const c=flat[i];
+  $("mass").value=c.m;$("dia").value=c.d;$("alloy").value=c.a;
+  $("emod").value=ALLOYS[c.a].E;$("nu").value=ALLOYS[c.a].nu;
+  if(!cmpLocked){ cmp=i; $("cmpCoin").value=String(i); }
+  render();
+}
+function current(){
+  const key=$("alloy").value, al=ALLOYS[key];
+  return {name:flat[sel].n,key:key,
+    mass:parseFloat($("mass").value)||flat[sel].m,
+    dia :parseFloat($("dia").value)||flat[sel].d,
+    rho :rhoOf(key),
+    E   :parseFloat($("emod").value)||al.E,
+    nu  :parseFloat($("nu").value)||0.42,
+    qmat:parseFloat($("qmat").value)||2000,
+    sup :$("grip").value,
+    hmm :caliperT()};
+}
+/* rim reading × rim factor = mean thickness. The factor is per coin type and you
+   calibrate it once at home against a piece you have weighed; 1.000 assumes a
+   flat disc, which no struck coin is.                                          */
+function caliperT(){
+  if($("tsrc").value!=="caliper") return 0;
+  const t=parseFloat($("trim").value), f=parseFloat($("rimf").value);
+  return (t>0 && f>0) ? t*f : 0;
+}
+/* comparison holds the planchet's size and lets the metal change; mass follows
+   density, because a disc of the same dimensions in another metal weighs what
+   that metal weighs — which is exactly why the scale catches these.
+   When it is pointed at the coin under test, it uses your measured figures.  */
+function comparison(){
+  const key=$("cmpAlloy").value, al=ALLOYS[key], rho=rhoOf(key);
+  const nu=parseFloat($("nu").value)||0.42, qmat=parseFloat($("qmat").value)||2000, sup=$("grip").value;
+  if(cmp===sel){
+    const c=current();
+    return {name:c.name,key:key,same:true,nominal:c.mass,
+      mass:c.mass*rho/c.rho,dia:c.dia,rho:rho,E:al.E,nu:nu,qmat:qmat,sup:sup,hmm:c.hmm};
+  }
+  const c=flat[cmp];
+  return {name:c.n,key:key,same:false,nominal:c.m,
+    mass:c.m*rho/rhoOf(c.a),dia:c.d,rho:rho,E:al.E,nu:nu,qmat:qmat,sup:sup,hmm:0};
+}
+const P=c=>predict(c.mass,c.dia,c.rho,c.E,c.nu,c.qmat,c.sup,c.hmm);
+
+const CV=n=>getComputedStyle(document.body).getPropertyValue(n).trim();
+function theme(){
+  const mt=(ALLOYS[$("alloy").value]||{}).mt||"gold";
+  if(document.body.dataset.metal!==mt){
+    document.body.dataset.metal=mt;
+    const m=document.querySelector('meta[name="theme-color"]');
+    if(m) requestAnimationFrame(()=>{m.content=CV("--case");});
+  }
+}
+function render(){
+  theme();
+  const c=current(), p=P(c);
+
+  $("f0").textContent=sp(Math.round(p.f[0]));
+  $("pitch").textContent=noteOf(p.f[0])+"  ·  "+c.name;
+  $("cTau").textContent=(p.tau[0]*1000).toFixed(1);
+  $("cQ").textContent=Math.round(p.Q[0]).toLocaleString();
+  $("cT").textContent=p.h.toFixed(3);
+  const st=parseFloat($("trans").value)||0, tw=$("tpwarn");
+  if(st){ tw.style.display="";
+    tw.innerHTML="PLAYBACK TRANSPOSED "+(st>0?"+":"")+st+" st — you are hearing "+
+      Math.round(p.f[0]*Math.pow(2,st/12))+" Hz, not "+Math.round(p.f[0])+
+      " Hz.<br>Do not compare this against a struck coin by ear.";
+  } else tw.style.display="none";
+  const cal=$("tsrc").value==="caliper";
+  $("cTlab").textContent = cal ? "t mm · caliper" : "t mm · from mass";
+  ["trim","rimf"].forEach(id=>{$(id).parentNode.style.opacity=cal?1:.45;});
+  const tm=parseFloat($("trim").value), mass=parseFloat($("mass").value);
+  const hMass=predict(mass||c.mass,c.dia,c.rho,c.E,c.nu,c.qmat,c.sup,0).h;
+  $("calib").innerHTML = (tm>0 && mass>0)
+    ? "<b>Calibration:</b> mass gives a mean thickness of "+hMass.toFixed(3)+" mm against your "+tm.toFixed(2)+
+      " mm rim reading — rim factor <b>"+(hMass/tm).toFixed(3)+"</b>. Do this at home once per type, write the number down, and the field only needs calipers."
+    : "Enter both a mass and a rim reading — on a coin you trust, at home — and this line gives you the rim factor to carry.";
+  $("cRho").textContent=c.rho.toFixed(2);
+
+  $("ladder").innerHTML=MODES.map((m,i)=>{
+    const dead=p.Q[i]<p.Q[0]*0.4;
+    const w=Math.max(3,Math.min(100,100*p.Q[i]/Math.max.apply(null,p.Q)));
+    return "<div class='rung"+(dead?" dead":"")+"'><span class='m'>"+m.id+"</span>"+
+      "<span class='bar'><i style='width:"+w.toFixed(0)+"%'></i></span>"+
+      "<span class='hz'>"+sp(Math.round(p.f[i]))+"</span>"+
+      "<span class='tt'>"+(p.tau[i]*1000).toFixed(0)+" ms</span></div>";
+  }).join("");
+
+  const b=comparison(), pb=P(b), cents=1200*Math.log2(pb.f[0]/p.f[0]);
+  $("cmpline").innerHTML = (b.same && b.key===c.key)
+    ? "Set to the same metal as the coin under test, so there is nothing to hear. Choose another alloy above."
+    : (b.same?"Same planchet":b.name)+" in "+ALLOYS[b.key].n.split(" — ")[0]+" &rarr; <b>"+
+      sp(Math.round(pb.f[0]))+" Hz</b>, "+(cents>0?"+":"")+Math.round(cents)+" cents from the panel"+
+      (Math.abs(cents)<25?" — too close to hear apart":"")+
+      "<br>that planchet weighs "+b.mass.toFixed(3)+" g against "+b.nominal.toFixed(4)+" g"+(b.same?"":" nominal")+
+      ((dm=>Math.abs(dm)>3?" — <b>"+(dm>0?"+":"")+dm.toFixed(1)+"%</b>":"")
+        ((b.mass/b.nominal-1)*100))+
+      (ALLOYS[b.key].mag?"<br><b>"+(ALLOYS[b.key].mag>1?"Ferromagnetic — a magnet answers this faster and more definitively than any ring."
+        :"Austenitic, so only weakly magnetic as annealed — but a struck coin is cold-worked, and cold work makes it respond. Try a magnet first.")+"</b>":"");
+
+  const r=refs[refKey()];
+  const where = store==="off" ? " <b style='color:var(--bad)'>This page cannot store references — they will vanish on reload.</b>" : "";
+  $("refline").innerHTML = (r
+    ? "Reference: <b>"+r.f0.toFixed(1)+" Hz</b>, Q "+Math.round(r.q)+", saved "+r.when+". Pitch tolerance ±1.5%."
+    : "No reference for this type. Pitch is judged against theory at ±8% and the score is capped at 80.") + where;
+
+  if(reading) score(); else {
+    $("mdot").className="dot";
+    $("measline").textContent="No reading — arm the microphone on Listen";
+  }
+  drawSpec();
+}
+const refKey=()=>flat[sel].n+"|"+$("alloy").value;
+
+["coin","mass","dia","alloy","emod","nu","qmat","grip","trans","tsrc","trim","rimf","wear"].forEach(id=>{
+  $(id).addEventListener("change",e=>{
+    if(id==="coin") return loadCoin(+e.target.value);
+    if(id==="alloy"){ const a=ALLOYS[e.target.value]; $("emod").value=a.E; $("nu").value=a.nu; }
+    render();
+  });
+  $(id).addEventListener("input",()=>{ if(id!=="coin") render(); });
+});
+$("grade").addEventListener("change",e=>{ $("wear").value=e.target.value; render(); });
+["cmpCoin","cmpAlloy"].forEach(id=>{
+  $(id).addEventListener("change",e=>{
+    if(id==="cmpCoin"){ cmp=+e.target.value; cmpLocked=(cmp!==sel); }
+    render();
+  });
+});
+
+/* ───────── tabs ───────── */
+document.querySelectorAll(".tabs button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b));
+    ["bench","listen","specs"].forEach(p=>{ $("p-"+p).hidden = (p!==b.dataset.p); });
+    if(b.dataset.p==="listen") requestAnimationFrame(drawSpec);
+  };
+});
+
+/* ═════════════════════ synthesis ═════════════════════ */
+let ac=null, playing=[];
+function audio(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); ac.resume(); return ac; }
+
+function ringBuffer(f,tau,amp,sr,semis){
+  const r=Math.pow(2,semis/12);
+  const F=f.map(x=>x*r), T=tau.map(x=>x/r);      /* scaling both holds Q constant */
+  let tmax=0; F.forEach((x,i)=>{ if(x<sr*0.45&&T[i]>tmax) tmax=T[i]; });
+  const dur=Math.min(5,Math.max(1.0,6*tmax));
+  const n=Math.ceil(dur*sr), y=new Float32Array(n);
+  const tn=Math.ceil(0.004*sr), td=0.0012*sr;    /* the strike itself */
+  for(let i=0;i<tn;i++) y[i]+=(Math.random()*2-1)*0.5*Math.exp(-i/td);
+  for(let k=0;k<F.length;k++){
+    if(!isFinite(F[k])||F[k]>=sr*0.47||!(amp[k]>0)||!(T[k]>0)) continue;
+    const w=2*Math.PI*F[k]/sr, ph=Math.random()*6.283, d=Math.exp(-1/(T[k]*sr));
+    let a=amp[k];
+    for(let i=0;i<n;i++){ y[i]+=a*Math.sin(w*i+ph); a*=d; if(a<2e-5) break; }
+  }
+  let m=0;for(let i=0;i<n;i++){const v=Math.abs(y[i]);if(v>m)m=v;}
+  if(m>0)for(let i=0;i<n;i++)y[i]*=0.82/m;
+  const fo=Math.ceil(0.012*sr);
+  for(let i=0;i<fo;i++) y[n-1-i]*=i/fo;
+  return y;
+}
+function stopAll(){ playing.forEach(s=>{try{s.stop()}catch(e){}}); playing=[]; }
+function playBuf(y,sr,at){
+  const c=audio();
+  const b=c.createBuffer(1,y.length,sr);b.copyToChannel(y,0);
+  const s=c.createBufferSource();s.buffer=b;s.connect(c.destination);
+  s.start(at||0);playing.push(s);
+  return y.length/sr;
+}
+function ringOf(spec){
+  const c=audio(), p=P(spec), semis=parseFloat($("trans").value)||0;
+  return {y:ringBuffer(p.f,p.tau,p.amp,c.sampleRate,semis), sr:c.sampleRate};
+}
+$("playA").onclick=()=>{stopAll();const r=ringOf(current());playBuf(r.y,r.sr,0);};
+$("playB").onclick=()=>{stopAll();const r=ringOf(comparison());playBuf(r.y,r.sr,0);};
+$("playAB").onclick=()=>{
+  stopAll();
+  const c=audio(), a=ringOf(current()), b=ringOf(comparison());
+  const t0=c.currentTime+0.06;
+  const d=playBuf(a.y,a.sr,t0);
+  playBuf(b.y,b.sr,t0+Math.min(d,2.0)+0.25);
+};
+$("stop").onclick=stopAll;
+
+$("playMeasured").onclick=()=>{
+  if(!reading)return;
+  stopAll();
+  const c=audio(), semis=parseFloat($("trans").value)||0;
+  const base=isFinite(reading.tau)&&reading.tau>0?reading.tau:0.05;
+  const f=[reading.f0], tau=[base], amp=[1];
+  reading.peaks.forEach(q=>{
+    if(Math.abs(q.f-reading.f0)/reading.f0<0.02)return;
+    f.push(q.f); tau.push(base*reading.f0/q.f); amp.push(Math.pow(10,(q.db-42)/20));
+  });
+  playBuf(ringBuffer(f,tau,amp,c.sampleRate,semis),c.sampleRate,0);
+};
+
+/* ═════════════════════ FFT ═════════════════════ */
+function fft(re,im){
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){let bit=n>>1;
+    for(;j&bit;bit>>=1)j^=bit; j^=bit;
+    if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=n;len<<=1){
+    const ang=-2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){
+      let cr=1,ci=0;
+      for(let k=0;k<len/2;k++){
+        const ur=re[i+k],ui=im[i+k];
+        const vr=re[i+k+len/2]*cr-im[i+k+len/2]*ci;
+        const vi=re[i+k+len/2]*ci+im[i+k+len/2]*cr;
+        re[i+k]=ur+vr;im[i+k]=ui+vi;
+        re[i+k+len/2]=ur-vr;im[i+k+len/2]=ui-vi;
+        const ncr=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=ncr;
+      }}}
+}
+function spectrum(x,sr,N){
+  const re=new Float64Array(N), im=new Float64Array(N);
+  const L=Math.min(x.length,N);
+  for(let i=0;i<L;i++){ const w=0.5-0.5*Math.cos(2*Math.PI*i/(L-1)); re[i]=x[i]*w; }
+  fft(re,im);
+  const half=N>>1, mag=new Float64Array(half);
+  for(let i=0;i<half;i++) mag[i]=Math.sqrt(re[i]*re[i]+im[i]*im[i]);
+  return {mag, binHz:sr/N};
+}
+function peaks(mag,binHz,fmin,fmax,maxN){
+  const i0=Math.max(2,Math.floor(fmin/binHz)), i1=Math.min(mag.length-3,Math.ceil(fmax/binHz));
+  let peak=0; for(let i=i0;i<=i1;i++) if(mag[i]>peak) peak=mag[i];
+  if(peak<=0) return [];
+  const floorDb=20*Math.log10(peak)-42;
+  const out=[];
+  for(let i=i0;i<=i1;i++){
+    const db=20*Math.log10(mag[i]+1e-30);
+    if(db<floorDb) continue;
+    if(mag[i]<=mag[i-1]||mag[i]<mag[i+1]) continue;
+    const lo=Math.max(i0,i-40),hi=Math.min(i1,i+40),acc=[];
+    for(let k=lo;k<=hi;k++)acc.push(mag[k]);
+    acc.sort((a,b)=>a-b);
+    if(db-20*Math.log10(acc[acc.length>>1]+1e-30)<8) continue;
+    const a=20*Math.log10(mag[i-1]+1e-30),b=db,c=20*Math.log10(mag[i+1]+1e-30);
+    const d=0.5*(a-c)/(a-2*b+c||1e-9);
+    out.push({f:(i+d)*binHz, db:b-floorDb, mag:mag[i]});
+  }
+  out.sort((p,q)=>q.mag-p.mag);
+  const keep=[];
+  for(const p of out){ if(!keep.some(k=>Math.abs(k.f-p.f)/p.f<0.012)) keep.push(p); if(keep.length>=maxN) break; }
+  return keep.sort((p,q)=>p.f-q.f);
+}
+
+/* ═════════════════════ microphone ═════════════════════ */
+let stream=null,node=null,src=null,armed=false;
+const PRE=0.06, CAP=0.60;
+let ring=null,ringW=0,capBuf=null,capN=0,capping=false,noiseFloor=1e-4;
+
+async function arm(){
+  if(armed){disarm();return;}
+  try{
+    const c=audio(); await c.resume();
+    stream=await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+    src=c.createMediaStreamSource(stream);
+    node=c.createScriptProcessor(1024,1,1);
+    ring=new Float32Array(Math.ceil(PRE*c.sampleRate));ringW=0;
+    node.onaudioprocess=onBlock;
+    src.connect(node);
+    const mute=c.createGain();mute.gain.value=0;node.connect(mute);mute.connect(c.destination);
+    armed=true;$("arm").textContent="Listening — strike the coin";$("arm").className="wide armed";
+    setStatus("Armed at "+c.sampleRate+" Hz, usable to "+Math.round(c.sampleRate/2)+" Hz.",true);
+  }catch(e){
+    setStatus("Microphone unavailable: "+e.name+". Safari grants it only over https — a file opened from Files will always fail. Host it, or load a recording.");
+  }
+}
+function disarm(){
+  armed=false;capping=false;
+  try{node&&node.disconnect();src&&src.disconnect();stream&&stream.getTracks().forEach(t=>t.stop());}catch(e){}
+  node=null;src=null;stream=null;
+  $("arm").textContent="Arm microphone";$("arm").className="wide primary";
+  $("lvl").style.width="0%";
+}
+$("arm").onclick=arm;
+
+function onBlock(ev){
+  const x=ev.inputBuffer.getChannelData(0);
+  let sum=0;for(let i=0;i<x.length;i++)sum+=x[i]*x[i];
+  const rms=Math.sqrt(sum/x.length);
+  $("lvl").style.width=Math.min(100,Math.max(0,(20*Math.log10(rms+1e-9)+70)*1.6))+"%";
+  if(capping){
+    const n=Math.min(x.length,capBuf.length-capN);
+    capBuf.set(x.subarray(0,n),capN);capN+=n;
+    if(capN>=capBuf.length){capping=false;analyse(capBuf,ac.sampleRate);}
+    return;
+  }
+  noiseFloor = rms<noiseFloor ? noiseFloor*0.9+rms*0.1 : noiseFloor*0.999+rms*0.001;
+  if(20*Math.log10(rms/(noiseFloor+1e-9))>(parseFloat($("thresh").value)||18) && rms>2e-4){
+    capBuf=new Float32Array(Math.ceil((PRE+CAP)*ac.sampleRate));
+    const pre=ring.length;
+    for(let i=0;i<pre;i++) capBuf[i]=ring[(ringW+i)%pre];
+    capBuf.set(x,pre);capN=pre+x.length;capping=true;
+    setStatus("Captured. Analysing…",true);
+    return;
+  }
+  for(let i=0;i<x.length;i++){ring[ringW]=x[i];ringW=(ringW+1)%ring.length;}
+}
+
+$("upload").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const c=audio(); await c.resume();
+  const buf=await c.decodeAudioData(await f.arrayBuffer());
+  const x=buf.getChannelData(0);
+  let best=0,bi=0;const W=Math.floor(0.005*buf.sampleRate);
+  for(let i=0;i+W<x.length;i+=W){let s=0;for(let k=0;k<W;k++)s+=x[i+k]*x[i+k];if(s>best){best=s;bi=i;}}
+  const st=Math.max(0,bi-Math.floor(PRE*buf.sampleRate));
+  analyse(x.slice(st,st+Math.floor((PRE+CAP)*buf.sampleRate)),buf.sampleRate);
+};
+$("again").onclick=()=>{reading=null;$("resultCard").style.display="none";render();setStatus(armed?"Armed. Strike again.":"Cleared.",armed);};
+
+/* ═════════ analysis: isolate the ring, then measure it ═════════ */
+async function analyse(x,sr){
+  setStatus("Analysing…",true);
+  const skip=Math.floor((PRE+(parseFloat($("skip").value)||8)/1000)*sr);
+  const body=x.slice(skip);
+  if(body.length<2048){setStatus("Capture too short to analyse.");return;}
+
+  const S=spectrum(body,sr,32768), nyq=sr/2;
+  const pk=peaks(S.mag,S.binHz,220,Math.min(nyq*0.92,22000),14);
+  if(!pk.length){setStatus("No tonal content found. That is itself a result — a dead thud has no peaks.");return;}
+
+  const c=current(), p=P(c);
+  let f0=null,best=-1,offwindow=false;
+  for(const q of pk) if(q.f>=p.f[0]*0.55&&q.f<=p.f[0]*1.75&&q.mag>best){best=q.mag;f0=q.f;}
+  if(f0===null){ f0=pk.reduce((a,b)=>b.mag>a.mag?b:a).f; offwindow=true; }
+
+  /* isolate: render the capture through a narrow bandpass at f0 and measure
+     that partial's own decay, free of the strike and of the room           */
+  let q=NaN,tau=NaN;
+  try{
+    const oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,body.length,sr);
+    const b=oc.createBuffer(1,body.length,sr);b.copyToChannel(body,0);
+    const s=oc.createBufferSource();s.buffer=b;
+    const bp=oc.createBiquadFilter();bp.type="bandpass";bp.frequency.value=f0;bp.Q.value=18;
+    s.connect(bp);bp.connect(oc.destination);s.start();
+    tau=decay((await oc.startRendering()).getChannelData(0),sr).tau; q=Math.PI*f0*tau;
+  }catch(e){}
+
+  reading={sr,f0,peaks:pk,q,tau,mag:S.mag,binHz:S.binHz,nyq,offwindow};
+  $("resultCard").style.display="";
+  render();
+  setStatus(offwindow
+    ? "Nothing landed in the predicted window. Using the loudest peak — check the coin selection and the mass."
+    : (armed?"Armed. Strike again to re-measure.":"Reading complete."), armed);
+}
+
+function decay(y,sr){
+  const hop=Math.floor(sr*0.004), n=Math.floor(y.length/hop), env=[];
+  for(let i=0;i<n;i++){let s=0;for(let k=0;k<hop;k++){const v=y[i*hop+k];s+=v*v;}env.push(Math.sqrt(s/hop));}
+  let pi=0;for(let i=0;i<env.length;i++)if(env[i]>env[pi])pi=i;
+  const top=env[pi],pts=[];
+  for(let i=pi;i<env.length;i++){
+    const db=20*Math.log10((env[i]+1e-12)/top);
+    if(db<-25)break;
+    pts.push([(i-pi)*hop/sr,db]);
+  }
+  if(pts.length<5) return {tau:NaN};
+  let sx=0,sy=0,sxy=0,sxx=0;
+  for(const a of pts){sx+=a[0];sy+=a[1];sxy+=a[0]*a[1];sxx+=a[0]*a[0];}
+  const m=(pts.length*sxy-sx*sy)/(pts.length*sxx-sx*sx||1e-9);
+  return {tau: m<0 ? 8.6859/(-m) : NaN};
+}
+
+/* ═════════════════════ scoring ═════════════════════ */
+function score(){
+  const c=current(), p=P(c), r=reading, ref=refs[refKey()];
+  const rows=[],prow=[];
+  let pts=0,max=0;
+
+  max+=30;
+  let qpts=0,qtxt="not measurable";
+  if(isFinite(r.q)){
+    const Q=r.q, ql=parseFloat($("qlo").value)||80, qh=parseFloat($("qhi").value)||450;
+    qpts = Q<=ql?0 : Q>=qh?30 : 30*(Q-ql)/Math.max(1,qh-ql);
+    qtxt = Math.round(Q)+" · τ "+(r.tau*1000).toFixed(0)+" ms";
+  }
+  pts+=qpts;
+  rows.push(["Ring quality Q",qtxt,qpts,qpts>20?"ok":qpts<8?"no":""]);
+
+  max+=40;
+  let matched=0,resid=0;
+  for(const q of r.peaks){
+    if(Math.abs(q.f-r.f0)/r.f0<0.02) continue;
+    const rat=q.f/r.f0;
+    if(rat<1.3||rat>7.2) continue;
+    let bestE=1e9,bestI=-1;
+    RATIOS.forEach((t,i)=>{if(i===0)return;const e=Math.abs(rat-t)/t;if(e<bestE){bestE=e;bestI=i;}});
+    if(bestI<0) continue;
+    prow.push([q.f,rat,MODES[bestI].id,bestE]);
+    if(bestE<0.10){matched++;resid+=Math.min(bestE,0.10);}
+  }
+  let rpts=0,rtxt="none found";
+  if(matched>0){
+    const mean=resid/matched;
+    const acc = mean<=0.02?1 : mean>=0.10?0 : (0.10-mean)/0.08;
+    const cover = matched>=3?1 : matched===2?0.85 : 0.55;
+    rpts=40*acc*cover;
+    rtxt=matched+" partial"+(matched>1?"s":"")+", mean "+(mean*100).toFixed(1)+"%";
+  }
+  pts+=rpts;
+  rows.push(["Mode ratios",rtxt,rpts,rpts>26?"ok":rpts<12?"no":""]);
+
+  max+=30;
+  let dev,band,basis;
+  if(ref){ dev=(r.f0-ref.f0)/ref.f0; band=0.015; basis="reference"; }
+  else   { dev=(r.f0-p.f[0])/p.f[0]; band=0.08;  basis="theory"; }
+  const wr=Math.max(0,(parseFloat($("wear").value)||0)/100);
+  const ad = dev<0 ? Math.max(0,-dev-wr) : dev;    /* wear can only ever flatten */
+  const apts = ad<=band?30 : ad>=band*3?0 : 30*(band*3-ad)/(band*2);
+  pts+=apts;
+  rows.push(["Fundamental placement",(dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+
+    (wr&&dev<0?" (−"+(wr*100).toFixed(1)+"% wear allowed)":""),apts,apts>22?"ok":apts<9?"no":""]);
+
+  let total=100*pts/max, capped=false;
+  if(!ref && total>80){ total=80; capped=true; }
+
+  /* the panel's measured line */
+  $("mdot").className="dot "+(total>=78?"ok":total>=52?"mid":"no");
+  $("measline").innerHTML="MEAS <b style='color:var(--lcd)'>"+sp(+r.f0.toFixed(1))+" Hz</b> · "+
+    (dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+" · score "+Math.round(total);
+
+  $("peaks").innerHTML = prow.length
+    ? prow.map(a=>"<tr><td>"+a[0].toFixed(1)+"</td><td class='num'>"+a[1].toFixed(3)+
+        "</td><td class='num'>"+a[2]+"</td><td class='num' style='color:"+(a[3]<0.05?"var(--good)":a[3]<0.10?"var(--warn)":"var(--bad)")+
+        "'>"+(a[3]*100).toFixed(1)+"%</td></tr>").join("")
+    : "<tr><td colspan='4' style='color:var(--dim)'>No partials above the fundamental. On a small coin the higher modes often sit above the microphone's usable range — not by itself a fault.</td></tr>";
+
+  $("score").innerHTML=rows.map(a=>
+    "<tr><td>"+a[0]+"</td><td class='num'>"+a[1]+"</td><td class='num'><span class='tag "+a[3]+"'>"+
+    a[2].toFixed(0)+"</span></td></tr>").join("")+
+    "<tr><td><b>Consistency</b></td><td class='num'></td><td class='num'><b style='font-size:17px;color:var(--goldhi)'>"+
+    Math.round(total)+"</b></td></tr>";
+
+  /* Solve the other way: hold the geometry you measured, ask which metals could
+     produce this pitch. Usually several — which is why a single fundamental can
+     never name an alloy, only rule some out.                                   */
+  const tol=band+ (dev<0?wr:0) + 0.02;
+  const fit=Object.keys(ALLOYS).filter(k=>{
+    const q=predict(0,c.dia,rhoOf(k),ALLOYS[k].E,ALLOYS[k].nu,c.qmat,c.sup,p.h);
+    return Math.abs(r.f0-q.f[0])/q.f[0] <= tol;
+  });
+  $("fitline").innerHTML = "<b>Consistent with this pitch at your measured geometry:</b> "+
+    (fit.length ? fit.map(k=>ALLOYS[k].n.split(" — ")[0]).join(" · ")
+                : "nothing in the alloy table")+
+    "<br><span style='opacity:.75'>Listed because they match, not because the coin is one of them. "+
+    (fit.length>1?"More than one metal fits, so this reading cannot name a material — only narrow the field."
+                 :"Even a single match is one number, √(E/ρ); treat it as a direction, not an identification.")+"</span>";
+
+  const vt = total>=78 ? ["v-good","Consistent with solid "+ALLOYS[c.key].n.split(" — ")[0]+" at this geometry",
+      "No acoustic anomaly. This says nothing about the dies, the strike, or whether the piece was struck in the year it claims."]
+    : total>=52 ? ["v-warn","Inconclusive",
+      "Something is short of the model — most often support damping, a marginal capture, or a modulus assumption that does not fit this alloy. Re-strike before drawing anything from it."]
+    : ["v-bad","Anomalous — investigate",
+      "The metal is not behaving like a solid homogeneous disc of the declared alloy. Weigh it and measure it before going further."];
+  $("verdict").innerHTML="<div class='verdict "+vt[0]+"'><p class='vtitle'>"+vt[1]+"</p><p class='vsub'>"+vt[2]+
+    (capped?" Capped at 80 because pitch is judged against theory rather than a coin you trust.":"")+"</p></div>";
+}
+
+$("saveref").onclick=()=>{
+  if(!reading)return;
+  refs[refKey()]={f0:reading.f0,q:reading.q,when:new Date().toISOString().slice(0,10)};
+  saveRefs();render();
+};
+$("clearref").onclick=()=>{delete refs[refKey()];saveRefs();render();};
+
+/* ═════════════════════ the comb ═════════════════════ */
+function drawSpec(){
+  const cv=$("spec"); if(!cv.clientWidth) return;
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=190;
+  cv.width=W*dpr;cv.height=H*dpr;
+  const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+
+  const c=current(),p=P(c),pb=P(comparison());
+  const fmax=Math.max(p.f[2]*1.6, pb.f[0]*1.25, reading?reading.f0*3.2:0, 2000);
+  const X=f=>26+(W-38)*f/fmax;
+  const cGold=CV("--gold"),cHi=CV("--goldhi"),cDim=CV("--dim"),cLn=CV("--line2"),cCmp=CV("--cool");
+
+  if(reading){
+    const mag=reading.mag, binHz=reading.binHz;
+    let peak=0;const n=Math.min(mag.length,Math.ceil(fmax/binHz));
+    for(let i=2;i<n;i++)if(mag[i]>peak)peak=mag[i];
+    g.beginPath();g.moveTo(26,H-21);
+    for(let px=26;px<W-12;px++){
+      const i=Math.round((px-26)/(W-38)*fmax/binHz);
+      const v=(i<n&&i>1)?mag[i]/(peak||1):0;
+      g.lineTo(px,H-21-Math.max(0,(20*Math.log10(v+1e-6)+60)/60)*(H-44));
+    }
+    g.lineTo(W-12,H-21);g.closePath();
+    g.fillStyle=cGold;g.globalAlpha=.13;g.fill();
+    g.strokeStyle=cGold;g.globalAlpha=.55;g.lineWidth=1;g.stroke();g.globalAlpha=1;
+  }
+
+  if(pb.f[0]<=fmax){
+    const x=X(pb.f[0]);
+    g.strokeStyle=cCmp;g.globalAlpha=.7;g.lineWidth=1;g.setLineDash([2,5]);
+    g.beginPath();g.moveTo(x,14);g.lineTo(x,H-21);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+    g.fillStyle=cCmp;g.font="10px ui-monospace,monospace";g.textAlign="center";
+    g.fillText("cmp",x,11);
+  }
+
+  MODES.forEach((m,i)=>{
+    if(p.f[i]>fmax)return;
+    const dead=p.Q[i]<p.Q[0]*0.4, x=X(p.f[i]);
+    g.strokeStyle=dead?cDim:cHi;g.globalAlpha=dead?.4:.85;
+    g.lineWidth=i===0?2:1;g.setLineDash(dead?[3,4]:[]);
+    g.beginPath();g.moveTo(x,14);g.lineTo(x,H-21);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+    g.fillStyle=dead?cDim:cHi;
+    g.font="10px ui-monospace,monospace";g.textAlign="center";
+    g.fillText(m.id,x,11);
+  });
+
+  if(reading){
+    reading.peaks.forEach(q=>{
+      if(q.f>fmax)return;
+      g.fillStyle=Math.abs(q.f-reading.f0)<1?"#8FD9A8":"#C9603F";
+      g.beginPath();g.arc(X(q.f),H-21,3.5,0,7);g.fill();
+    });
+    const x=X(reading.f0);
+    g.strokeStyle="#8FD9A8";g.lineWidth=1.5;
+    g.beginPath();g.moveTo(x,18);g.lineTo(x,H-21);g.stroke();
+  }
+
+  g.fillStyle=cDim;g.globalAlpha=.65;g.font="10px ui-monospace,monospace";
+  g.strokeStyle=cLn;g.globalAlpha=1;g.lineWidth=1;
+  g.beginPath();g.moveTo(26,H-21);g.lineTo(W-12,H-21);g.stroke();
+  const step=fmax>16000?4000:fmax>8000?2000:fmax>3000?1000:250;
+  g.fillStyle=cDim;g.globalAlpha=.65;
+  for(let f=0;f<=fmax;f+=step){g.textAlign="center";g.fillText((f/1000).toFixed(f<1000?1:0)+"k",X(f),H-7);}
+  g.globalAlpha=1;
+}
+window.addEventListener("resize",drawSpec);
+function setStatus(t,live){$("status").textContent=t;$("status").className="status"+(live?" live":"");}
+
+/* single-file build: no sw.js beside it, so no offline cache and no
+   update banner. Use the four-file bundle for the deployed version.          */
+const BUILD="single-file";
+(function(){const f=document.querySelector(".foot"); if(f) f.textContent="single file · "+f.textContent;})();
+try{
+  const mfjson={name:"Ring Bench",short_name:"Ring Bench",start_url:".",display:"standalone",
+    background_color:"#0B0906",theme_color:"#0B0906",
+    icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230B0906'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%23D4AF5A' stroke-width='4'/%3E%3C/svg%3E",sizes:"any",type:"image/svg+xml"}]};
+  $("mf").href=URL.createObjectURL(new Blob([JSON.stringify(mfjson)],{type:"application/json"}));
+}catch(e){}
+
+/* open on the Serbian 20 dinara — three coins here share its geometry */
+const START=Math.max(0,flat.findIndex(c=>c.n.indexOf("20 Dinara 1882")===0));
+$("cmpAlloy").value="brass"; $("coin").value=String(START);
+loadCoin(START);
+loadRefs();
+</script>
+</body>
+</html>

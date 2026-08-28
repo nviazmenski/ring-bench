@@ -1,0 +1,19 @@
+{
+  "name": "Ring Bench",
+  "short_name": "Ring Bench",
+  "description": "Flexural mode prediction and acoustic measurement for struck coins.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0906",
+  "theme_color": "#0B0906",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
