@@ -439,6 +439,16 @@ const COINS=[
   {n:"20 Dinara 1938 · KM#23",       m:9.0000,  d:27.00, a:"ag750"},
   {n:"50 Dinara 1938 · KM#24",       m:15.0000, d:31.00, a:"ag750"},
  ]},
+ {g:"German Empire — gold",items:[
+  {n:"10 Mark 1872–1915 · KM#various", m:3.9800,  d:19.50, a:"au900cu"},
+  {n:"20 Mark 1871–1915 · KM#various", m:7.9650,  d:22.50, a:"au900cu"},
+ ]},
+ {g:"German Empire — silver",items:[
+  {n:"50 Pfennig / ½ Mark 1875–1919 · KM#6, KM#17", m:2.7700,  d:20.00, a:"ag900"},
+  {n:"1 Mark 1873–1916 · KM#7",        m:5.5500,  d:24.00, a:"ag900"},
+  {n:"2 Mark 1876–1915 · KM#various",  m:11.1100, d:28.00, a:"ag900"},
+  {n:"5 Mark 1874–1914 · KM#various",  m:27.7700, d:38.00, a:"ag900"},
+ ]},
  {g:"Austria and the ducat standard",items:[
   {n:"1 Ducat",                      m:3.4909,  d:20.00, a:"au986cu"},
   {n:"4 Ducat",                      m:13.9636, d:39.50, a:"au986cu"},
@@ -499,7 +509,28 @@ const flat=[];COINS.forEach(g=>g.items.forEach(c=>flat.push(c)));
 
 /* ───────── free circular plate, Leissa ─────────
    f = (λ² h)/(2π a²) · √( E / (12(1−ν²)ρ) )
-   λ² is material-free, so ratios f_i/f_0 are a pure shape test.
+
+   KNOWN GAP, not yet fixed — read before touching λ² or ν:
+   These λ² are NOT material-free. They are Leissa's tabulated roots for
+   every mode with a nodal diameter (every row here except (0,1)), and
+   those roots are themselves functions of ν — there is no closed form;
+   Leissa solved a transcendental equation in Bessel functions and
+   published numbers at discrete ν (0, .1, .2, .3, 1/3, .5). The figures
+   below sit at ν≈0.33, which is a generic mid-alloy value, not the ν of
+   any specific alloy in the table below (gold ν=.42, silver ν=.37,
+   cupronickel ν=.33-.34 happens to match, brass ν=.35).
+   Net effect: every gold and silver prediction on this panel is computed
+   with a λ² table implicitly built for the wrong ν. The (0,1) mode is the
+   one exception — no nodal diameter, so its λ²=9.084 really is ν-free —
+   everything else here is a live, uncorrected source of error, largest
+   for gold (ν off by ~0.09) and smaller for silver (~0.04).
+   Fixing it for real needs Leissa's λ²(ν) values (or a re-derived root
+   solve) at each mode/ν pair actually used, interpolated per alloy — not
+   a single multiplier, since the ν-sensitivity differs by mode. That is
+   a real numerical task, not a hardcoded-constant swap, and it has not
+   been done here. Do not ship a guessed interim solver under time
+   pressure — a stated, uncorrected ~0.04-0.09 gap you know about beats a
+   silent wrong number from an unverified root-finder.
    centreNode: a nodal line passes through the centre — true for every mode
    with at least one nodal diameter, false for the axisymmetric ones.      */
 const MODES=[
