@@ -105,6 +105,16 @@ button:focus-visible,select:focus,input:focus{outline:2px solid var(--gold);outl
 .tabs button.on{background:var(--panel2);color:var(--goldhi);box-shadow:inset 0 0 0 1px var(--line)}
 .pane[hidden]{display:none}
 
+/* ── simple/detailed mode toggle: smaller and tighter than .tabs, so it
+   doesn't read as a fourth section tab ── */
+.modeToggle{display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:3px;margin-bottom:12px}
+.modeToggle button{background:transparent;border:none;border-radius:5px;padding:7px 6px;
+  font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);cursor:pointer}
+.modeToggle button.on{background:var(--panel2);color:var(--goldhi);box-shadow:inset 0 0 0 1px var(--line)}
+/* diagnostic/enthusiast content — hidden in Simple mode, shown in Detailed */
+body[data-viewmode="simple"] .adv{display:none}
+
 /* ── panel content ── */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
 .cardhead{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
@@ -148,6 +158,16 @@ canvas{width:100%;display:block;border-radius:8px;background:#0A0805;border:1px 
 .status.live{color:var(--goldhi)}
 .note{font-size:13px;color:var(--dim);line-height:1.6}
 .note b{color:var(--text);font-weight:600}
+.meltval{font-family:var(--mono);font-size:24px;color:var(--goldhi);margin:2px 0 10px;letter-spacing:.01em}
+.meltval em{font-size:13px;font-style:normal;color:var(--dim);margin-left:6px}
+.meltval.empty{font-size:13px;color:var(--dim);font-family:var(--sans)}
+
+/* two copies of the melt card share state; only one is ever visible at a time */
+#meltLandscape{display:none}
+@media (orientation:landscape){
+  #meltLandscape{display:block}
+  #meltPortrait{display:none}
+}
 .interval{font-family:var(--mono);font-size:12.5px;color:var(--cool);line-height:1.6}
 .verdict{border-radius:9px;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line)}
 .v-good{background:#12200F;border-color:#3F6A44}
@@ -163,18 +183,50 @@ canvas{width:100%;display:block;border-radius:8px;background:#0A0805;border:1px 
 details{margin-top:11px}
 summary{cursor:pointer;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);padding:6px 0}
 hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
-ul.lim{margin:0;padding-left:17px}
-ul.lim li{margin-bottom:9px;font-size:13px;color:var(--dim)}
-ul.lim li b{color:var(--text)}
 .foot{text-align:center;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);opacity:.55;margin-top:26px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ── landscape: fixed readout column + scrolling tab column ──
+   Portrait/mobile is completely untouched above this point; everything
+   here only applies inside the orientation query. */
+@media (orientation:landscape){
+  body{
+    padding:calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+            calc(14px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    height:100vh;overflow:hidden;
+  }
+  .device{
+    max-width:1180px;height:100%;margin:0 auto;
+    display:grid;grid-template-columns:minmax(300px,380px) 1fr;
+    column-gap:22px;
+  }
+  .readoutcol{display:flex;flex-direction:column;min-width:0;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
+  .readoutcol .caveat,.readoutcol .transport{margin-bottom:0}
+  .panecol{display:flex;flex-direction:column;min-height:0;height:100%;min-width:0}
+
+  /* tabs pinned at top of the right column, active pane scrolls beneath */
+  .panecol .tabs{flex:none;margin-bottom:12px}
+  .panecol .pane{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px;min-height:0}
+  .pane[hidden]{display:none}
+
+  /* let the spectrogram use the extra vertical room it now has */
+  #spec{height:340px}
+}
 </style>
 </head>
-<body>
+<body data-viewmode="simple">
 <div class="device">
 
+<div class="readoutcol">
   <div class="brand"><h1>Ring Bench</h1><span>free plate · flexural</span></div>
-  <select id="coin" class="coinsel"></select>
+  <div class="modeToggle" id="modeToggle">
+    <button data-mode="simple" class="on">Simple</button>
+    <button data-mode="detailed">Detailed</button>
+  </div>
+  <div class="coinpick">
+    <select id="coinRegion" class="coinsel"></select>
+    <select id="coin" class="coinsel"></select>
+  </div>
 
   <!-- ═══ the readout ═══ -->
   <div class="lcd">
@@ -198,9 +250,22 @@ ul.lim li b{color:var(--text)}
     <button id="stop">Stop</button>
   </div>
 
+  <!-- ═══ melt value — landscape copy, lives in the fixed left column ═══ -->
+  <div class="card meltcard" id="meltLandscape">
+    <div class="cardhead">Melt value</div>
+    <div class="row">
+      <div><label for="spotAu_l">Gold $/oz</label><input id="spotAu_l" type="number" step="1" inputmode="decimal" placeholder="e.g. 2650"></div>
+      <div><label for="spotAg_l">Silver $/oz</label><input id="spotAg_l" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 30.50"></div>
+    </div>
+    <div class="meltval" id="meltOut_l">Enter a spot price to see melt value</div>
+    <p class="note">Fine metal content only — the alloy's precious-metal fraction times mass, at the price you enter. Manual and static: nothing here calls out to the internet.</p>
+  </div>
+
   <div id="tpwarn" style="display:none"></div>
   <div id="upd" style="display:none"></div>
+</div>
 
+<div class="panecol">
   <!-- ═══ tabs ═══ -->
   <nav class="tabs">
     <button data-p="bench" class="on">Bench</button>
@@ -210,8 +275,9 @@ ul.lim li b{color:var(--text)}
 
   <!-- ═══ BENCH ═══ -->
   <section class="pane" id="p-bench">
-    <div class="card">
+    <div class="card adv">
       <div class="cardhead">Mode ladder</div>
+
       <div class="ladder" id="ladder"></div>
     </div>
 
@@ -224,7 +290,7 @@ ul.lim li b{color:var(--text)}
       <p class="note"><b>Leave this at zero unless you know why you are moving it.</b> It shifts playback only — never the measurement, never the score — but a synthesised ring an octave off the real one is the fastest way to talk yourself into a match that is not there. The panel turns red whenever it is non-zero. Phone speakers give up around 4 kHz, so if you must transpose to hear anything, use headphones instead and leave this alone.</p>
     </div>
 
-    <div class="card">
+    <div class="card adv">
       <div class="cardhead">Comparison</div>
       <div class="row">
         <div><label for="cmpCoin">Coin</label><select id="cmpCoin"></select></div>
@@ -263,9 +329,11 @@ ul.lim li b{color:var(--text)}
       <table><thead><tr><th>Check</th><th style="text-align:right">Result</th><th style="text-align:right">Pts</th></tr></thead>
       <tbody id="score"></tbody></table>
       <div id="fitline" class="note" style="margin-top:12px"></div>
+      <div class="adv">
       <hr>
       <table><thead><tr><th>Peak Hz</th><th style="text-align:right">Ratio</th><th style="text-align:right">Mode</th><th style="text-align:right">Error</th></tr></thead>
       <tbody id="peaks"></tbody></table>
+      </div>
       <div class="btnrow" style="margin-top:14px">
         <button id="playMeasured">Play what was measured</button>
         <button id="saveref" class="primary">Save as reference</button>
@@ -305,6 +373,7 @@ ul.lim li b{color:var(--text)}
       <p class="note" style="margin-bottom:13px">Wear comes off the faces, so it is thickness that goes, and frequency follows thickness one for one. A worn coin therefore rings <b>flat</b> of the catalogue figure and can never ring sharp of it. This widens the acceptance band downward only. It does not move the prediction — a worn coin simply carries less information, and the panel should admit that rather than pretend to a precision it lost in circulation.</p>
       <div id="calib" class="note" style="margin-bottom:13px"></div>
       <p class="note">Use your own figures, not the catalogue's. Thickness is what the model needs; mass is one way to get it, calipers are the other. Switch below if you are working without a scale.</p>
+      <div class="adv">
       <details>
         <summary>Elastic constants</summary>
         <div class="row" style="margin-top:10px">
@@ -321,38 +390,20 @@ ul.lim li b{color:var(--text)}
         </div>
         <p class="note">Q is the softest number on this bench, worse than modulus. Strike three coins you are certain of, take the lowest Q you see, put the floor under it.</p>
       </details>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="cardhead">What this establishes, and what it does not</div>
-      <ul class="lim">
-        <li><b>A high score means the metal is solid, homogeneous, and of about the right stiffness-to-density ratio for the declared alloy and geometry.</b> That is the whole claim. It is not a statement about authenticity.</li>
-        <li><b>It cannot detect a counterfeit struck from correct-fineness gold.</b> Right alloy, right mass, right diameter means right ring. That is the fake that matters for the Yugoslav dukats, restruck in quantity and copied in correct metal to this day. Only dies, edge and strike character will help there.</li>
-        <li><b>Pitch alone is degenerate; pitch with two caliper readings is not.</b> Frequency goes as thickness over radius squared, times √(E/ρ). Give it diameter and thickness and the only unknown left is √(E/ρ) — which is the material signature, and the whole point. Without a dimension the equation has two unknowns and no answer, however clean the capture.</li>
-        <li><b>Calipers, not a scale.</b> Mass was only ever a route to thickness. A pocket caliper gives thickness directly, weighs under 100 g, costs about twenty dollars, and raises no eyebrows at a border. Set <i>Thickness from</i> to Calipers on Specs and the bench closes with no scale involved.</li>
-        <li><b>The rim factor is the one thing to prepare at home.</b> A caliper reads the rim; the plate vibrates on the mean, and on a struck coin those differ. So once, on a piece you trust and have weighed, enter both figures and Specs hands you the ratio. Write it on the flip. The factor is a property of the type, so one calibration covers every example of it — and in the field you carry the number, not the scale.</li>
-        <li><b>The bench cannot name a metal, and you should not either.</b> A fundamental gives you one number, √(E/ρ). Several alloys share any given value of it, which is why the Reading tab lists everything consistent rather than picking a culprit. "Sounds like cupronickel" is a claim the physics does not support; "does not sit where .900 silver should" is one it does. Say the second thing to a seller, never the first.</li>
-        <li><b>Circulated coins ring flat, and heavily circulated ones ring well flat.</b> Wear removes metal from the faces, frequency follows thickness one for one, and a Good-grade crown can be several percent under nominal. Set the grade on Specs before reading anything worn — otherwise you are comparing a coin against a catalogue weight it has not carried in a century. Wear can only ever lower the pitch, so the allowance widens the band downward and leaves the sharp side alone.</li>
-        <li><b>Cleaning does not change the ring.</b> Even brutal polishing takes microns and leaves mass, thickness and bulk elasticity alone. A blazing, hairlined, obviously-scrubbed coin should ring exactly like an untouched one. If a cleaned piece reads wrong, the cleaning is not the reason — look at wear, at your rim factor, or at the transpose field.</li>
-        <li><b>A magnet is the other thing worth carrying.</b> Smaller than the calipers, and it settles the steel question outright — the failure this bench handles worst, and the one you say you actually meet.</li>
-        <li><b>The mode-ratio check is the one test here that owes nothing to the alloy.</b> Ratios depend on shape and Poisson ratio only. A plated or cored composite bends as a laminate and the ratios drift.</li>
-        <li><b>A reference coin you trust beats every number on this panel.</b> Save a reading from a piece you are certain of and the material terms cancel; tolerance collapses from ±8% to ±1.5%.</li>
-        <li><b>The synthesised ring is a model, not a recording.</b> Six decaying sinusoids off a flat disc. Real rims, relief and countermarks pull modes down a few percent and split degenerate pairs into audible doublets.</li>
-        <li><b>The contact-damping constants are fitted, not derived.</b> They were chosen so the model behaves plausibly and carry no authority.</li>
-        <li><b>Several coins here are acoustically indistinguishable.</b> Serbia 20 dinara 1879 and 1882 and Yugoslavia 20 dinara 1925 share mass, diameter and alloy exactly. The $10 Eagle sits about 5% under the Sovereign and the Serbian 20 dinara, and the $1 Type 2/3 lands within 3% of both — all inside the model's own ±8% modulus band, so pitch alone cannot separate them.</li>
-        <li><b>The 40% clad half dollar is the one coin here the model is knowingly wrong about.</b> It is a sandwich — .800 silver faces over a .209 silver core — and the panel treats it as homogeneous .400. Its real modes will not sit where the ladder says. That makes it the best thing in the library to strike: it is a genuine laminate, so it is where you can watch the mode-ratio check earn its keep.</li>
-        <li><b>For a steel core, put the microphone down and pick up a magnet.</b> Steel is the usual filler in faked crowns and dollars, and it is the one case where this whole instrument is the wrong tool. Mild steel and ferritic stainless are strongly ferromagnetic; a two-dollar magnet gives a binary answer in a second, where the ring gives you a number to interpret. Use the bench on it only to know what you are listening for.</li>
-        <li><b>A steel fake cannot satisfy mass and dimensions at once, and the gap is not subtle.</b> At the right diameter and thickness it comes in about 24% light. If the faker adds thickness to make weight, it ends up roughly 32% thicker — which a caliper reads directly, and which the bench then hears as about 1,435 cents sharp, more than an octave. Working from calipers you catch it twice, on the dimension and on the pitch. Order of operations in the field: magnet, calipers, then ring.</li>
-        <li><b>Plating does not change the ring.</b> A silver wash over a steel core is a few microns and contributes nothing to bending stiffness, so the panel treats a plated steel fake as plain steel and that is roughly right. A thick silver <i>shell</i> over a core is a different object — a laminate — and the mode ratios are where that shows up, not the fundamental.</li>
-        <li><b>Steel figures here are book values for the metal, not for any coin.</b> Density is entered directly rather than derived, because the mixture rule handles austenitic packing badly. Modulus near 200 GPa and ν near 0.29 are generic structural-steel numbers; a specific fake could sit some way off.</li>
-        <li><b>Cupronickel and clad are calibration targets, not coins to authenticate.</b> They are here so you can check the bench against pieces whose answer you already know. A 1947 British shilling should sit roughly 868 cents over its 1946 sterling twin, and a modern clad quarter 542 cents over a 1964 one. Those are the numbers to test the app on before you point it at anything valuable.</li>
-        <li><b>US clad and the 40% half are laminates, and the model treats them as homogeneous.</b> The stiff outer layers sit farthest from the neutral axis, so real bending stiffness runs above the volume average and the true pitch will come in over the prediction. Expect the clad coins to read sharp. That error is not a defect to correct — it is the signature the mode-ratio check exists to find.</li>
-        <li><b>Silver moduli here are estimates, and looser than the gold ones.</b> I have no measured figures for these specific coin alloys, so E is interpolated between silver and copper and ν set near 0.37. Treat silver absolute pitch as worse than ±8%, and lean harder on ratios and on a saved reference.</li>
-        <li><b>United States gold before 1834 is a different standard.</b> The library's US entries are the .900 fine issues set by the Act of 1837. Earlier pieces run .9167 and heavier, so the panel's alloy default would be wrong for them — change it on Specs before reading anything.</li>
-        <li><b>Turn off voice processing.</b> The listener asks for raw capture, but a headset or call-optimised path destroys the 5–14 kHz partials and every reading will look wrong.</li>
-      </ul>
+    <div class="card meltcard" id="meltPortrait">
+      <div class="cardhead">Melt value</div>
+      <div class="row">
+        <div><label for="spotAu_p">Gold $/oz</label><input id="spotAu_p" type="number" step="1" inputmode="decimal" placeholder="e.g. 2650"></div>
+        <div><label for="spotAg_p">Silver $/oz</label><input id="spotAg_p" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 30.50"></div>
+      </div>
+      <div class="meltval" id="meltOut_p">Enter a spot price to see melt value</div>
+      <p class="note">Fine metal content only — the alloy's precious-metal fraction times mass, at the price you enter. Manual and static: nothing here calls out to the internet.</p>
     </div>
   </section>
+</div>
 
   <div class="foot">Leissa eigenvalues · density by elemental mass fraction</div>
 </div>
@@ -399,13 +450,13 @@ const rhoOf=k=>ALLOYS[k].rho||dens(ALLOYS[k].f);
 
 /* ───────── coin library, by issuer ───────── */
 const COINS=[
- {g:"Imperial Russia — gold",items:[
+ {region:"Imperial Russia",g:"Imperial Russia — gold",items:[
   {n:"5 Roubles 1897–1911 · Y#62",   m:4.3013,  d:18.55, a:"au900cu"},
   {n:"7½ Roubles 1897 · Y#63",       m:6.4516,  d:21.30, a:"au900cu"},
   {n:"10 Roubles 1898–1911 · Y#64",  m:8.6026,  d:22.50, a:"au900cu"},
   {n:"15 Roubles 1897 · Y#65",       m:12.9039, d:24.60, a:"au900cu"},
  ]},
- {g:"Imperial Russia — silver",items:[
+ {region:"Imperial Russia",g:"Imperial Russia — silver",items:[
   {n:"1 Rouble 1886–1915 · Y#59/71", m:19.9960, d:33.65, a:"ag900"},
   {n:"1 Rouble 1913 Romanov · Y#70", m:19.9960, d:33.65, a:"ag900"},
   {n:"50 Kopeks 1896–1914 · Y#58",   m:9.9980,  d:26.75, a:"ag900"},
@@ -415,63 +466,63 @@ const COINS=[
   {n:"10 Kopeks · Y#20a",            m:1.8000,  d:17.50, a:"ag500"},
   {n:"5 Kopeks · Y#19a",             m:0.9000,  d:15.10, a:"ag500"},
  ]},
- {g:"Serbia — gold",items:[
+ {region:"Serbia",g:"Serbia — gold",items:[
   {n:"10 Dinara 1882 · KM#16",       m:3.2258,  d:19.00, a:"au900cu"},
   {n:"20 Dinara 1879 · KM#14",       m:6.4516,  d:21.00, a:"au900cu"},
   {n:"20 Dinara 1882 · KM#17",       m:6.4516,  d:21.00, a:"au900cu"},
  ]},
- {g:"Serbia — silver",items:[
+ {region:"Serbia",g:"Serbia — silver",items:[
   {n:"50 Para 1875–1915 · KM#24",    m:2.5000,  d:18.00, a:"ag835"},
   {n:"1 Dinar 1875–1915 · KM#25",    m:5.0000,  d:22.50, a:"ag835"},
   {n:"2 Dinara 1875–1915 · KM#26",   m:10.0000, d:28.00, a:"ag835"},
   {n:"5 Dinara 1879 · KM#12",        m:25.0000, d:37.00, a:"ag900"},
   {n:"5 Dinara 1904 · KM#27",        m:25.0000, d:37.00, a:"ag900"},
  ]},
- {g:"Kingdom of Yugoslavia — gold",items:[
+ {region:"Yugoslavia",g:"Kingdom of Yugoslavia — gold",items:[
   {n:"20 Dinara 1925 · KM#7",        m:6.4516,  d:21.00, a:"au900cu"},
   {n:"1 Dukat 1931–34 · KM#12",      m:3.4909,  d:19.75, a:"au986cu"},
   {n:"4 Dukata 1931–33 · KM#14",     m:13.9636, d:40.00, a:"au986cu"},
  ]},
- {g:"Kingdom of Yugoslavia — silver",items:[
+ {region:"Yugoslavia",g:"Kingdom of Yugoslavia — silver",items:[
   {n:"10 Dinara 1931 · KM#10",       m:7.0000,  d:24.00, a:"ag500yu"},
   {n:"20 Dinara 1931 · KM#11",       m:14.0000, d:31.00, a:"ag500yu"},
   {n:"50 Dinara 1932 · KM#16",       m:23.3000, d:36.00, a:"ag750"},
   {n:"20 Dinara 1938 · KM#23",       m:9.0000,  d:27.00, a:"ag750"},
   {n:"50 Dinara 1938 · KM#24",       m:15.0000, d:31.00, a:"ag750"},
  ]},
- {g:"German Empire — gold",items:[
+ {region:"German Empire",g:"German Empire — gold",items:[
   {n:"10 Mark 1872–1915 · KM#various", m:3.9800,  d:19.50, a:"au900cu"},
   {n:"20 Mark 1871–1915 · KM#various", m:7.9650,  d:22.50, a:"au900cu"},
  ]},
- {g:"German Empire — silver",items:[
+ {region:"German Empire",g:"German Empire — silver",items:[
   {n:"50 Pfennig / ½ Mark 1875–1919 · KM#6, KM#17", m:2.7700,  d:20.00, a:"ag900"},
   {n:"1 Mark 1873–1916 · KM#7",        m:5.5500,  d:24.00, a:"ag900"},
   {n:"2 Mark 1876–1915 · KM#various",  m:11.1100, d:28.00, a:"ag900"},
   {n:"5 Mark 1874–1914 · KM#various",  m:27.7700, d:38.00, a:"ag900"},
  ]},
- {g:"Austria and the ducat standard",items:[
+ {region:"Austria",g:"Austria and the ducat standard",items:[
   {n:"1 Ducat",                      m:3.4909,  d:20.00, a:"au986cu"},
   {n:"4 Ducat",                      m:13.9636, d:39.50, a:"au986cu"},
   {n:"20 Corona",                    m:6.7752,  d:21.00, a:"au900cu"},
   {n:"Maria Theresa Thaler 1780",    m:28.0668, d:39.50, a:"ag833"},
  ]},
- {g:"Britain — gold",items:[
+ {region:"Britain",g:"Britain — gold",items:[
   {n:"Sovereign",                    m:7.9881,  d:22.05, a:"au9167"},
   {n:"Half Sovereign",               m:3.9941,  d:19.30, a:"au9167"},
  ]},
- {g:"Britain — one planchet, three metals",items:[
+ {region:"Britain",g:"Britain — one planchet, three metals",items:[
   {n:"Crown · 1816–1965",            m:28.2759, d:38.61, a:"ag925"},
   {n:"Halfcrown · 1816–1967",        m:14.1380, d:32.31, a:"ag925"},
   {n:"Florin · 1849–1970",           m:11.3104, d:28.50, a:"ag925"},
   {n:"Shilling · 1816–1970",         m:5.6552,  d:23.50, a:"ag925"},
   {n:"Sixpence · 1816–1970",         m:2.8276,  d:19.50, a:"ag925"},
  ]},
- {g:"Latin Monetary Union",items:[
+ {region:"Latin Monetary Union",g:"Latin Monetary Union",items:[
   {n:"20 Francs Vreneli",            m:6.4516,  d:21.00, a:"au900cu"},
   {n:"20 Francs Rooster / Napoleon", m:6.4516,  d:21.00, a:"au900cu"},
   {n:"Swiss 5 Francs · 1931–67",     m:15.0000, d:31.45, a:"ag835"},
  ]},
- {g:"United States — gold, pre-1933",items:[
+ {region:"United States",g:"United States — gold, pre-1933",items:[
   {n:"$1 Gold Type 1 · 1849–54",       m:1.6718,  d:13.00, a:"au900cu"},
   {n:"$1 Gold Type 2/3 · 1854–89",     m:1.6718,  d:14.86, a:"au900cu"},
   {n:"$2½ Quarter Eagle · 1840–1929",  m:4.1795,  d:18.00, a:"au900cu"},
@@ -480,7 +531,7 @@ const COINS=[
   {n:"$10 Eagle · 1838–1933",          m:16.7181, d:27.00, a:"au900cu"},
   {n:"$20 Double Eagle · 1850–1933",   m:33.4362, d:34.00, a:"au900cu"},
  ]},
- {g:"United States — silver and clad",items:[
+ {region:"United States",g:"United States — silver and clad",items:[
   {n:"Trade Dollar · 1873–85",         m:27.2155, d:38.10, a:"ag900"},
   {n:"Seated Liberty Dollar · 1840–73",m:26.7296, d:38.10, a:"ag900"},
   {n:"Morgan Dollar · 1878–1921",      m:26.7296, d:38.10, a:"ag900"},
@@ -494,10 +545,10 @@ const COINS=[
   {n:"Quarter clad · 1965–",           m:5.6700,  d:24.26, a:"usclad"},
   {n:"Dime clad · 1965–",              m:2.2680,  d:17.91, a:"usclad"},
  ]},
- {g:"Mexico",items:[
+ {region:"Mexico",g:"Mexico",items:[
   {n:"8 Reales, cap and rays · 1824–97", m:27.0700, d:39.00, a:"ag900"},
  ]},
- {g:"Modern bullion",items:[
+ {region:"Modern bullion",g:"Modern bullion",items:[
   {n:"Gold Eagle 1 oz",              m:33.931,  d:32.70, a:"au9167"},
   {n:"Krugerrand 1 oz",              m:33.930,  d:32.77, a:"au9167"},
   {n:"Maple Leaf 1 oz",              m:31.103,  d:30.00, a:"au999"},
@@ -602,12 +653,138 @@ async function loadRefs(){
   render();
 }
 
+/* ───────── spot price (manual entry, no network) ─────────
+   Two input pairs (landscape sidebar, portrait Specs card) show the same
+   two numbers. Whichever one changes writes the shared state and both
+   copies repaint from it, so they can never drift out of sync.          */
+let spot={au:null,ag:null};
+const SPOTKEY="ringbench.spot";
+function saveSpot(){
+  const j=JSON.stringify(spot);
+  try{ localStorage.setItem(SPOTKEY,j); }catch(e){}
+  if(window.storage){ try{ window.storage.set(SPOTKEY,j); }catch(e){} }
+}
+async function loadSpot(){
+  try{ const v=localStorage.getItem(SPOTKEY); if(v) spot=Object.assign(spot,JSON.parse(v)); }catch(e){}
+  if(window.storage){
+    try{ const r=await window.storage.get(SPOTKEY); if(r&&r.value) spot=Object.assign(spot,JSON.parse(r.value)); }
+    catch(e){ /* key absent simply means nothing saved yet */ }
+  }
+  renderMelt();
+}
+
+/* ───────── simple / detailed ─────────
+   Body defaults to data-viewmode="simple" in the markup itself, so there is
+   no flash of diagnostic content before this loads. Detailed is an opt-in
+   the app remembers, same storage pattern as the reference saves and spot
+   price above.                                                          */
+const VMKEY="ringbench.viewmode";
+function setViewMode(mode,persist){
+  document.body.dataset.viewmode=mode;
+  document.querySelectorAll("#modeToggle button").forEach(b=>b.classList.toggle("on",b.dataset.mode===mode));
+  if(persist){
+    try{ localStorage.setItem(VMKEY,mode); }catch(e){}
+    if(window.storage){ try{ window.storage.set(VMKEY,mode); }catch(e){} }
+  }
+}
+async function loadViewMode(){
+  let mode=null;
+  try{ mode=localStorage.getItem(VMKEY); }catch(e){}
+  if(window.storage){
+    try{ const r=await window.storage.get(VMKEY); if(r&&r.value) mode=r.value; }
+    catch(e){ /* key absent simply means nothing saved yet */ }
+  }
+  if(mode==="simple"||mode==="detailed") setViewMode(mode,false);
+}
+document.querySelectorAll("#modeToggle button").forEach(b=>{
+  b.addEventListener("click",()=>setViewMode(b.dataset.mode,true));
+});
+
+const TROY_OZ_G=31.1034768;
+function meltValue(){
+  const c=current(), al=ALLOYS[c.key], f=al.f||{};
+  const auG=c.mass*(f.Au||0), agG=c.mass*(f.Ag||0);
+  const hasAu=auG>0, hasAg=agG>0;
+  if(!hasAu && !hasAg) return {applies:false};
+  const auVal=(hasAu && spot.au>0) ? (auG/TROY_OZ_G)*spot.au : null;
+  const agVal=(hasAg && spot.ag>0) ? (agG/TROY_OZ_G)*spot.ag : null;
+  return {applies:true,hasAu,hasAg,auG,agG,auVal,agVal,
+    total:(auVal||0)+(agVal||0),
+    ready:(!hasAu||auVal!=null)&&(!hasAg||agVal!=null)&&(auVal!=null||agVal!=null)};
+}
+function renderMelt(){
+  ["_l","_p"].forEach(sfx=>{
+    const inAu=$("spotAu"+sfx), inAg=$("spotAg"+sfx);
+    if(document.activeElement!==inAu) inAu.value=spot.au||"";
+    if(document.activeElement!==inAg) inAg.value=spot.ag||"";
+  });
+  const m=meltValue();
+  const html = !m.applies
+    ? "<span class='empty'>No precious metal in this alloy — nothing to melt-price</span>"
+    : !m.ready
+      ? "Enter a spot price above to see melt value"
+      : "$"+m.total.toFixed(2)+"<em>"+
+        [m.hasAu?("Au "+(m.auG).toFixed(3)+" g"):null, m.hasAg?("Ag "+(m.agG).toFixed(3)+" g"):null]
+          .filter(Boolean).join(" · ")+"</em>";
+  ["meltOut_l","meltOut_p"].forEach(id=>{
+    const el=$(id);
+    el.className = (!m.applies || !m.ready) ? "meltval empty" : "meltval";
+    el.innerHTML=html;
+  });
+}
+["spotAu_l","spotAg_l","spotAu_p","spotAg_p"].forEach(id=>{
+  $(id).addEventListener("input",e=>{
+    const metal = id.startsWith("spotAu") ? "au" : "ag";
+    const v=parseFloat(e.target.value);
+    spot[metal] = (v>0) ? v : null;
+    saveSpot();
+    renderMelt();
+  });
+});
+
+/* ───────── coin picker: region first, then denomination ─────────
+   flat[] indices must stay exactly what they were — every group's items
+   are still counted in COINS source order — so loadCoin(), refs, and the
+   comparison tool all keep working unchanged. Only what's *shown* in the
+   #coin select is filtered to the chosen region.                        */
+const REGIONS=(()=>{const seen=new Set(),out=[];COINS.forEach(g=>{if(!seen.has(g.region)){seen.add(g.region);out.push(g.region);}});return out;})();
+const GROUP_OFFSET=(()=>{let i=0;return COINS.map(g=>{const start=i;i+=g.items.length;return start;});})();
+function regionOf(flatIndex){
+  for(let gi=0;gi<COINS.length;gi++){
+    const start=GROUP_OFFSET[gi], end=start+COINS[gi].items.length;
+    if(flatIndex>=start && flatIndex<end) return COINS[gi].region;
+  }
+  return REGIONS[0];
+}
+function populateCoinSelect(region){
+  const s=$("coin"); s.innerHTML="";
+  const groupsHere=COINS.map((g,gi)=>({g,gi})).filter(x=>x.g.region===region);
+  const multi=groupsHere.length>1;
+  groupsHere.forEach(({g,gi})=>{
+    const target = multi ? document.createElement("optgroup") : s;
+    if(multi) target.label = g.g.includes(" — ") ? g.g.split(" — ")[1] : g.g;
+    g.items.forEach((c,j)=>{
+      const o=document.createElement("option");
+      o.value=GROUP_OFFSET[gi]+j; o.textContent=c.n;
+      target.appendChild(o);
+    });
+    if(multi) s.appendChild(target);
+  });
+}
 (function(){
-  ["coin","cmpCoin"].forEach(id=>{
-    const s=$(id);let i=0;
-    COINS.forEach(g=>{const og=document.createElement("optgroup");og.label=g.g;
-      g.items.forEach(c=>{const o=document.createElement("option");o.value=i++;o.textContent=c.n;og.appendChild(o);});
-      s.appendChild(og);});
+  const s=$("cmpCoin");let i=0;
+  COINS.forEach(g=>{const og=document.createElement("optgroup");og.label=g.g;
+    g.items.forEach(c=>{const o=document.createElement("option");o.value=i++;o.textContent=c.n;og.appendChild(o);});
+    s.appendChild(og);});
+})();
+(function(){
+  const rs=$("coinRegion");
+  REGIONS.forEach(r=>{const o=document.createElement("option");o.value=r;o.textContent=r;rs.appendChild(o);});
+  rs.addEventListener("change",()=>{
+    populateCoinSelect(rs.value);
+    const firstIdx=+$("coin").options[0].value;
+    $("coin").value=String(firstIdx);
+    loadCoin(firstIdx);
   });
   ["alloy","cmpAlloy"].forEach(id=>{
     const s=$(id);
@@ -618,6 +795,9 @@ async function loadRefs(){
 
 function loadCoin(i){
   sel=i;const c=flat[i];
+  const r=regionOf(i);
+  if($("coinRegion").value!==r){ $("coinRegion").value=r; populateCoinSelect(r); }
+  $("coin").value=String(i);
   $("mass").value=c.m;$("dia").value=c.d;$("alloy").value=c.a;
   $("emod").value=ALLOYS[c.a].E;$("nu").value=ALLOYS[c.a].nu;
   if(!cmpLocked){ cmp=i; $("cmpCoin").value=String(i); }
@@ -727,6 +907,7 @@ function render(){
     $("mdot").className="dot";
     $("measline").textContent="No reading — arm the microphone on Listen";
   }
+  renderMelt();
   drawSpec();
 }
 const refKey=()=>flat[sel].n+"|"+$("alloy").value;
@@ -1094,7 +1275,7 @@ $("clearref").onclick=()=>{delete refs[refKey()];saveRefs();render();};
 /* ═════════════════════ the comb ═════════════════════ */
 function drawSpec(){
   const cv=$("spec"); if(!cv.clientWidth) return;
-  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=190;
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight||190;
   cv.width=W*dpr;cv.height=H*dpr;
   const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
   g.clearRect(0,0,W,H);
@@ -1158,6 +1339,8 @@ function drawSpec(){
   g.globalAlpha=1;
 }
 window.addEventListener("resize",drawSpec);
+window.addEventListener("orientationchange",()=>setTimeout(drawSpec,60));
+if(window.matchMedia) window.matchMedia("(orientation:landscape)").addEventListener("change",()=>setTimeout(drawSpec,60));
 function setStatus(t,live){$("status").textContent=t;$("status").className="status"+(live?" live":"");}
 
 /* offline + self-update. The worker answers from cache instantly and checks the
@@ -1189,9 +1372,11 @@ if("serviceWorker" in navigator){
 
 /* open on the Serbian 20 dinara — three coins here share its geometry */
 const START=Math.max(0,flat.findIndex(c=>c.n.indexOf("20 Dinara 1882")===0));
-$("cmpAlloy").value="brass"; $("coin").value=String(START);
+$("cmpAlloy").value="brass";
 loadCoin(START);
 loadRefs();
+loadSpot();
+loadViewMode();
 </script>
 </body>
 </html>
