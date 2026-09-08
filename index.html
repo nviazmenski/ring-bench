@@ -196,9 +196,9 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
     height:100vh;overflow:hidden;
   }
   .device{
-    max-width:1180px;height:100%;margin:0 auto;
-    display:grid;grid-template-columns:minmax(300px,380px) 1fr;
-    column-gap:22px;
+    max-width:1560px;height:100%;margin:0 auto;
+    display:grid;grid-template-columns:minmax(320px,440px) 1fr;
+    column-gap:26px;
   }
   .readoutcol{display:flex;flex-direction:column;min-width:0;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
   .readoutcol .caveat,.readoutcol .transport{margin-bottom:0}
@@ -246,7 +246,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   <!-- ═══ transport ═══ -->
   <div class="transport">
     <button id="playA" class="play">Play the ring</button>
-    <button id="playAB">A / B</button>
+    <button id="playAB" class="adv">A / B</button>
     <button id="stop">Stop</button>
   </div>
 
@@ -316,6 +316,12 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         <div><label for="thresh">Trigger dB over floor</label><input id="thresh" type="number" step="1" value="18" inputmode="decimal"></div>
         <div><label for="skip">Skip strike ms</label><input id="skip" type="number" step="1" value="8" inputmode="decimal"></div>
       </div>
+      <div class="row">
+        <div><label for="crest">Min tone prominence dB</label><input id="crest" type="number" step="1" value="26" inputmode="decimal"></div>
+        <div><label for="cooldown">Cooldown after a reading, ms</label><input id="cooldown" type="number" step="100" value="1500" inputmode="decimal"></div>
+      </div>
+      <p class="note">A struck coin's spectrum is one or two narrow spikes towering over near-silence. Room noise, handling, and voices are comparatively flat — energy smeared across many bins with nothing dominating. This is the gap between the two, and a capture that doesn't clear it is discarded before it ever touches the reading: no verdict, no spectrogram change, nothing on screen. If genuine strikes get ignored, lower this. If ordinary noise keeps producing "anomalous" readings, raise it.</p>
+      <p class="note">The cooldown is separate from that gate. Passing the prominence check only means something rang, not that it was your coin — a nearby vendor's own strike, on a crowded show floor, clears it just as easily. Without a pause, whichever sound crosses the trigger next simply overwrites the reading on screen, good or not. Raise this if a good result keeps getting replaced moments after it appears; lower it if you're being made to wait between deliberate strikes of your own.</p>
       <div class="btnrow">
         <button id="upload">Load a recording</button>
         <button id="again">Clear reading</button>
@@ -386,7 +392,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         <summary>Q calibration for scoring</summary>
         <div class="row" style="margin-top:10px">
           <div><label for="qlo">No credit below</label><input id="qlo" type="number" step="10" value="80" inputmode="decimal"></div>
-          <div><label for="qhi">Full credit above</label><input id="qhi" type="number" step="10" value="450" inputmode="decimal"></div>
+          <div><label for="qhi">Full credit above</label><input id="qhi" type="number" step="50" value="3000" inputmode="decimal"></div>
         </div>
         <p class="note">Q is the softest number on this bench, worse than modulus. Strike three coins you are certain of, take the lowest Q you see, put the floor under it.</p>
       </details>
@@ -422,6 +428,7 @@ const ALLOYS={
   au986cu:{n:".986 Au / .014 Cu — ducat standard",      f:{Au:.986,Cu:.014},E:80,nu:.42,mt:"gold"},
   au9661 :{n:".9661 Au / bal Cu — Numista, YU ducat",   f:{Au:.9661,Cu:.0339},E:80,nu:.42,mt:"gold"},
   au9167 :{n:".9167 Au / Ag / Cu — crown gold, 22k",    f:{Au:.9167,Ag:.03,Cu:.0533},E:82,nu:.42,mt:"gold"},
+  au917cu:{n:".917 Au / .083 Cu — Ottoman lira standard",f:{Au:.917,Cu:.083},E:80,nu:.42,mt:"gold"},
   au900ag:{n:".900 Au / .100 Ag",                       f:{Au:.900,Ag:.100},E:80,nu:.42,mt:"gold"},
   au750  :{n:".750 Au / Ag / Cu — 18k, underfine",      f:{Au:.750,Ag:.10,Cu:.150},E:88,nu:.41,mt:"gold"},
   au999  :{n:".9999 Au — fine",                         f:{Au:1.0},E:79,nu:.42,mt:"gold"},
@@ -431,6 +438,7 @@ const ALLOYS={
   ag835  :{n:".835 Ag / .165 Cu — LMU silver standard", f:{Ag:.835,Cu:.165},E:85,nu:.37,mt:"silver"},
   ag833  :{n:".833 Ag / .167 Cu — thaler standard",     f:{Ag:.833,Cu:.167},E:85,nu:.37,mt:"silver"},
   ag800  :{n:".800 Ag / .200 Cu",                       f:{Ag:.800,Cu:.200},E:87,nu:.37,mt:"silver"},
+  ag830  :{n:".830 Ag / .170 Cu — Ottoman kuruş standard",f:{Ag:.830,Cu:.170},E:85,nu:.37,mt:"silver"},
   ag750  :{n:".750 Ag / .250 Cu — Yugoslav 1932–38",    f:{Ag:.750,Cu:.250},E:88,nu:.37,mt:"silver"},
   ag500  :{n:".500 Ag / .500 Cu — RU billon, GB 1920–46",f:{Ag:.500,Cu:.500},E:96,nu:.36,mt:"silver"},
   ag500yu:{n:".500 Ag / Cu / Ni / Zn — Yugoslav 1931",  f:{Ag:.50,Cu:.40,Ni:.05,Zn:.05},E:100,nu:.36,mt:"silver"},
@@ -500,11 +508,39 @@ const COINS=[
   {n:"2 Mark 1876–1915 · KM#various",  m:11.1100, d:28.00, a:"ag900"},
   {n:"5 Mark 1874–1914 · KM#various",  m:27.7700, d:38.00, a:"ag900"},
  ]},
- {region:"Austria",g:"Austria and the ducat standard",items:[
+ {region:"Austria",g:"Austria — ducats and Thaler",items:[
   {n:"1 Ducat",                      m:3.4909,  d:20.00, a:"au986cu"},
   {n:"4 Ducat",                      m:13.9636, d:39.50, a:"au986cu"},
-  {n:"20 Corona",                    m:6.7752,  d:21.00, a:"au900cu"},
   {n:"Maria Theresa Thaler 1780",    m:28.0668, d:39.50, a:"ag833"},
+ ]},
+ {region:"Austria",g:"Austria-Hungary — Corona gold",items:[
+  {n:"10 Corona 1892–1915 · KM#various", m:3.3875, d:19.00, a:"au900cu"},
+  {n:"20 Corona 1892–1916 · KM#various", m:6.7751, d:21.00, a:"au900cu"},
+ ]},
+ {region:"Austria",g:"Austria-Hungary — Corona silver",items:[
+  {n:"1 Corona 1893–1916 · KM#various",  m:5.0000,  d:23.00, a:"ag835"},
+  {n:"2 Corona 1912–13 · KM#various",    m:10.0000, d:27.00, a:"ag835"},
+ ]},
+ {region:"Ottoman Empire",g:"Ottoman Empire — gold",items:[
+  {n:"100 Kuruş (1 Lira) 1844–1918 · KM#various", m:7.2160, d:22.00, a:"au917cu"},
+ ]},
+ {region:"Ottoman Empire",g:"Ottoman Empire — silver",items:[
+  {n:"1 Kuruş 1844–1918 · KM#various",  m:1.2027,  d:14.60, a:"ag830"},
+  {n:"5 Kuruş 1844–1861 · KM#673",      m:6.0130,  d:23.50, a:"ag830"},
+  {n:"20 Kuruş 1844–1876 · KM#various", m:24.0000, d:37.00, a:"ag830"},
+ ]},
+ {region:"Romania",g:"Romania — gold",items:[
+  {n:"20 Lei 1868–1906 · KM#various",   m:6.4516,  d:21.00, a:"au900cu"},
+ ]},
+ {region:"Romania",g:"Romania — silver",items:[
+  {n:"5 Lei 1880–1901 · KM#17",         m:25.0000, d:37.00, a:"ag900"},
+ ]},
+ {region:"Bulgaria",g:"Bulgaria — gold",items:[
+  {n:"10 Leva 1894 · KM#19",            m:3.2300,  d:19.00, a:"au900cu"},
+  {n:"20 Leva 1894 · KM#20",            m:6.4516,  d:21.50, a:"au900cu"},
+ ]},
+ {region:"Bulgaria",g:"Bulgaria — silver",items:[
+  {n:"5 Leva 1884–94 · KM#7/15/18",     m:25.0000, d:37.00, a:"ag900"},
  ]},
  {region:"Britain",g:"Britain — gold",items:[
   {n:"Sovereign",                    m:7.9881,  d:22.05, a:"au9167"},
@@ -517,10 +553,37 @@ const COINS=[
   {n:"Shilling · 1816–1970",         m:5.6552,  d:23.50, a:"ag925"},
   {n:"Sixpence · 1816–1970",         m:2.8276,  d:19.50, a:"ag925"},
  ]},
- {region:"Latin Monetary Union",g:"Latin Monetary Union",items:[
-  {n:"20 Francs Vreneli",            m:6.4516,  d:21.00, a:"au900cu"},
-  {n:"20 Francs Rooster / Napoleon", m:6.4516,  d:21.00, a:"au900cu"},
-  {n:"Swiss 5 Francs · 1931–67",     m:15.0000, d:31.45, a:"ag835"},
+ {region:"Switzerland",g:"Switzerland — gold",items:[
+  {n:"10 Francs Vreneli 1911–22 · KM#36",  m:3.2258,  d:19.00, a:"au900cu"},
+  {n:"20 Francs Vreneli 1897–1949 · KM#35",m:6.4516,  d:21.00, a:"au900cu"},
+ ]},
+ {region:"Switzerland",g:"Switzerland — silver",items:[
+  {n:"5 Francs 1931–67 · KM#40",           m:15.0000, d:31.45, a:"ag835"},
+ ]},
+ {region:"France",g:"France — gold",items:[
+  {n:"10 Francs 1899–1914 · KM#846",       m:3.2258,  d:19.00, a:"au900cu"},
+  {n:"20 Francs Rooster/Marianne 1899–1914 · KM#847", m:6.4516, d:21.00, a:"au900cu"},
+ ]},
+ {region:"France",g:"France — silver",items:[
+  {n:"5 Francs Hercule 1870–89 · KM#820.1",m:25.0000, d:37.00, a:"ag900"},
+ ]},
+ {region:"Belgium",g:"Belgium — gold",items:[
+  {n:"20 Francs Leopold II 1867–1914 · KM#37",m:6.4516, d:21.00, a:"au900cu"},
+ ]},
+ {region:"Belgium",g:"Belgium — silver",items:[
+  {n:"5 Francs Leopold II 1865–76 · KM#24",m:25.0000, d:37.00, a:"ag900"},
+ ]},
+ {region:"Italy",g:"Italy — gold",items:[
+  {n:"20 Lire 1861–1923 · KM#various",     m:6.4516,  d:21.00, a:"au900cu"},
+ ]},
+ {region:"Italy",g:"Italy — silver",items:[
+  {n:"5 Lire 1861–1914 · KM#various",      m:25.0000, d:37.00, a:"ag900"},
+ ]},
+ {region:"Greece",g:"Greece — gold",items:[
+  {n:"20 Drachmai George I 1876–84 · KM#various", m:6.4516, d:21.00, a:"au900cu"},
+ ]},
+ {region:"Greece",g:"Greece — silver",items:[
+  {n:"5 Drachmai George I 1875–76 · KM#46",m:25.0000, d:37.00, a:"ag900"},
  ]},
  {region:"United States",g:"United States — gold, pre-1933",items:[
   {n:"$1 Gold Type 1 · 1849–54",       m:1.6718,  d:13.00, a:"au900cu"},
@@ -1052,7 +1115,7 @@ function peaks(mag,binHz,fmin,fmax,maxN){
 /* ═════════════════════ microphone ═════════════════════ */
 let stream=null,node=null,src=null,armed=false;
 const PRE=0.06, CAP=0.60;
-let ring=null,ringW=0,capBuf=null,capN=0,capping=false,noiseFloor=1e-4;
+let ring=null,ringW=0,capBuf=null,capN=0,capping=false,noiseFloor=1e-4,capPeak=0,cooldownUntil=0;
 
 async function arm(){
   if(armed){disarm();return;}
@@ -1085,19 +1148,24 @@ function onBlock(ev){
   const x=ev.inputBuffer.getChannelData(0);
   let sum=0;for(let i=0;i<x.length;i++)sum+=x[i]*x[i];
   const rms=Math.sqrt(sum/x.length);
-  $("lvl").style.width=Math.min(100,Math.max(0,(20*Math.log10(rms+1e-9)+70)*1.6))+"%";
   if(capping){
+    capPeak=Math.max(capPeak,rms);
     const n=Math.min(x.length,capBuf.length-capN);
     capBuf.set(x.subarray(0,n),capN);capN+=n;
-    if(capN>=capBuf.length){capping=false;analyse(capBuf,ac.sampleRate);}
+    if(capN>=capBuf.length){
+      capping=false;
+      $("lvl").style.width=Math.min(100,Math.max(0,(20*Math.log10(capPeak+1e-9)+70)*1.6))+"%";
+      analyse(capBuf,ac.sampleRate);
+    }
     return;
   }
   noiseFloor = rms<noiseFloor ? noiseFloor*0.9+rms*0.1 : noiseFloor*0.999+rms*0.001;
+  if(Date.now()<cooldownUntil) return;
   if(20*Math.log10(rms/(noiseFloor+1e-9))>(parseFloat($("thresh").value)||18) && rms>2e-4){
     capBuf=new Float32Array(Math.ceil((PRE+CAP)*ac.sampleRate));
     const pre=ring.length;
     for(let i=0;i<pre;i++) capBuf[i]=ring[(ringW+i)%pre];
-    capBuf.set(x,pre);capN=pre+x.length;capping=true;
+    capBuf.set(x,pre);capN=pre+x.length;capping=true;capPeak=rms;
     setStatus("Captured. Analysing…",true);
     return;
   }
@@ -1117,8 +1185,20 @@ $("file").onchange=async e=>{
 };
 $("again").onclick=()=>{reading=null;$("resultCard").style.display="none";render();setStatus(armed?"Armed. Strike again.":"Cleared.",armed);};
 
-/* ═════════ analysis: isolate the ring, then measure it ═════════ */
+/* ═════════ analysis: isolate the ring, then measure it ═════════
+   Every exit from analyseInner — rejected capture, too-short capture, or a
+   completed reading — still consumed real time and a real capture window.
+   Wrapping it here guarantees the cooldown is set exactly once regardless
+   of which return path fired, rather than needing to remember it at each
+   of the four places analyseInner can end.                               */
 async function analyse(x,sr){
+  try{
+    await analyseInner(x,sr);
+  }finally{
+    cooldownUntil=Date.now()+(parseFloat($("cooldown").value)||1500);
+  }
+}
+async function analyseInner(x,sr){
   setStatus("Analysing…",true);
   const skip=Math.floor((PRE+(parseFloat($("skip").value)||8)/1000)*sr);
   const body=x.slice(skip);
@@ -1128,21 +1208,89 @@ async function analyse(x,sr){
   const pk=peaks(S.mag,S.binHz,220,Math.min(nyq*0.92,22000),14);
   if(!pk.length){setStatus("No tonal content found. That is itself a result — a dead thud has no peaks.");return;}
 
+  /* confidence gate: peaks() finds local maxima, and noise has plenty of
+     those — a jittery room-noise capture can "find" several small bumps
+     the same way a strike does. What noise does NOT do is produce a
+     spectrum with one or two bins towering over a near-silent rest of the
+     band. Require that shape before this capture is allowed to touch the
+     displayed reading at all — no verdict, no spectrogram change, nothing
+     on screen, for anything that doesn't clear it.                      */
+  {
+    const i0=Math.max(2,Math.floor(220/S.binHz)), i1=Math.min(S.mag.length-3,Math.ceil(Math.min(nyq*0.92,22000)/S.binHz));
+    let peakMag=0,sumMag=0,cnt=0;
+    for(let i=i0;i<=i1;i++){ if(S.mag[i]>peakMag) peakMag=S.mag[i]; sumMag+=S.mag[i]; cnt++; }
+    const crestDb=20*Math.log10((peakMag+1e-30)/((sumMag/(cnt||1))+1e-30));
+    const minCrest=parseFloat($("crest").value)||26;
+    if(crestDb<minCrest){
+      setStatus("Captured, but nothing dominant in the spectrum — not a strike, ignored."+(armed?" Still listening.":""),armed);
+      return;
+    }
+  }
+
+  /* Same idea applied per-peak, for mode-ratio matching specifically. The
+     crest gate above only asks "is there a dominant tone anywhere" — it says
+     nothing about whether any given quieter upper partial is real or is
+     just the room's own noise happening to sit at that frequency. The
+     pre-strike segment is genuine, guaranteed noise-only audio; spectrum()
+     zero-pads short input automatically, so running it at the same FFT size
+     as the body gives an ambient reference in the exact same bins, directly
+     comparable one-to-one. A candidate peak that isn't clearly above what
+     the room was already producing at its own frequency gets dropped before
+     it can ever be miscounted as "no partials matched" versus counted as a
+     false one — this is what "none found" so often was: real quiet partials
+     buried in a same-size ambient bump, not absent partials.               */
+  {
+    const preRoll=x.slice(0,Math.floor(PRE*sr));
+    const Sn=spectrum(preRoll,sr,32768);
+    /* FFT magnitude for a steady tone scales linearly with how many real
+       samples went into the window — confirmed numerically, not assumed.
+       The pre-strike segment is PRE seconds, the body is much longer, so a
+       truly constant hum reads far "quieter" in the short pre-roll purely
+       from that length difference, not because it actually got louder.
+       Scale the ambient reference up to the body's window length first, or
+       every persistent background tone slips straight through unfiltered.*/
+    const Lpre=Math.min(preRoll.length,32768), Lbody=Math.min(body.length,32768);
+    const scale=Lbody/Math.max(1,Lpre);
+    const cleaned=pk.filter(q=>{
+      const bin=Math.round(q.f/S.binHz);
+      let noiseMag=0;
+      for(let d=-1;d<=1;d++) noiseMag=Math.max(noiseMag,Sn.mag[bin+d]||0);
+      return 20*Math.log10((q.mag+1e-30)/(noiseMag*scale+1e-30)) >= 10;
+    });
+    if(cleaned.length) pk.length=0, pk.push(...cleaned);
+  }
+
   const c=current(), p=P(c);
   let f0=null,best=-1,offwindow=false;
   for(const q of pk) if(q.f>=p.f[0]*0.55&&q.f<=p.f[0]*1.75&&q.mag>best){best=q.mag;f0=q.f;}
   if(f0===null){ f0=pk.reduce((a,b)=>b.mag>a.mag?b:a).f; offwindow=true; }
 
   /* isolate: render the capture through a narrow bandpass at f0 and measure
-     that partial's own decay, free of the strike and of the room           */
+     that partial's own decay, free of the strike and of the room.
+     "Free of the room" needs the room's own level in this same band, not an
+     assumption — a fixed dB-below-peak cutoff has no way to know whether the
+     venue is a quiet kitchen table or a coin show floor. The PRE seconds
+     already captured before the strike are genuine, guaranteed noise-only
+     audio; filter that through the identical bandpass and its level becomes
+     the real floor the decay fit should stop at, rather than blindly
+     following the envelope down into noise and fitting a slope to it.      */
   let q=NaN,tau=NaN;
   try{
-    const oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,body.length,sr);
-    const b=oc.createBuffer(1,body.length,sr);b.copyToChannel(body,0);
-    const s=oc.createBufferSource();s.buffer=b;
-    const bp=oc.createBiquadFilter();bp.type="bandpass";bp.frequency.value=f0;bp.Q.value=18;
-    s.connect(bp);bp.connect(oc.destination);s.start();
-    tau=decay((await oc.startRendering()).getChannelData(0),sr).tau; q=Math.PI*f0*tau;
+    const bandpassRender=async(seg)=>{
+      const oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,seg.length,sr);
+      const b=oc.createBuffer(1,seg.length,sr);b.copyToChannel(seg,0);
+      const s=oc.createBufferSource();s.buffer=b;
+      const bp=oc.createBiquadFilter();bp.type="bandpass";bp.frequency.value=f0;bp.Q.value=18;
+      s.connect(bp);bp.connect(oc.destination);s.start();
+      return (await oc.startRendering()).getChannelData(0);
+    };
+    const preRoll=x.slice(0,Math.floor(PRE*sr));
+    const noiseFiltered=await bandpassRender(preRoll);
+    let ns=0;for(let i=0;i<noiseFiltered.length;i++)ns+=noiseFiltered[i]*noiseFiltered[i];
+    const noiseRms=Math.sqrt(ns/Math.max(1,noiseFiltered.length));
+
+    const bodyFiltered=await bandpassRender(body);
+    tau=decay(bodyFiltered,sr,noiseRms).tau; q=Math.PI*f0*tau;
   }catch(e){}
 
   reading={sr,f0,peaks:pk,q,tau,mag:S.mag,binHz:S.binHz,nyq,offwindow};
@@ -1153,14 +1301,20 @@ async function analyse(x,sr){
     : (armed?"Armed. Strike again to re-measure.":"Reading complete."), armed);
 }
 
-function decay(y,sr){
+function decay(y,sr,noiseRms){
   const hop=Math.floor(sr*0.004), n=Math.floor(y.length/hop), env=[];
   for(let i=0;i<n;i++){let s=0;for(let k=0;k<hop;k++){const v=y[i*hop+k];s+=v*v;}env.push(Math.sqrt(s/hop));}
   let pi=0;for(let i=0;i<env.length;i++)if(env[i]>env[pi])pi=i;
   const top=env[pi],pts=[];
+  /* stop at a fixed -25dB below peak as a floor-blind safety net, or 6dB above
+     the room's own measured level in this band, whichever is reached first —
+     past that point the envelope is measuring the room, not the coin, and
+     fitting a slope through it only manufactures a false, too-long tau.     */
+  const noiseCutDb = (noiseRms>0 && top>0) ? 20*Math.log10(noiseRms/top)+6 : -Infinity;
+  const cutDb = Math.max(-25, noiseCutDb);
   for(let i=pi;i<env.length;i++){
     const db=20*Math.log10((env[i]+1e-12)/top);
-    if(db<-25)break;
+    if(db<cutDb)break;
     pts.push([(i-pi)*hop/sr,db]);
   }
   if(pts.length<5) return {tau:NaN};
@@ -1187,7 +1341,7 @@ function score(){
   rows.push(["Ring quality Q",qtxt,qpts,qpts>20?"ok":qpts<8?"no":""]);
 
   max+=40;
-  let matched=0,resid=0;
+  let matched=0,resid=0,closest=null;
   for(const q of r.peaks){
     if(Math.abs(q.f-r.f0)/r.f0<0.02) continue;
     const rat=q.f/r.f0;
@@ -1196,6 +1350,7 @@ function score(){
     RATIOS.forEach((t,i)=>{if(i===0)return;const e=Math.abs(rat-t)/t;if(e<bestE){bestE=e;bestI=i;}});
     if(bestI<0) continue;
     prow.push([q.f,rat,MODES[bestI].id,bestE]);
+    if(!closest||bestE<closest.e) closest={rat,id:MODES[bestI].id,e:bestE};
     if(bestE<0.10){matched++;resid+=Math.min(bestE,0.10);}
   }
   let rpts=0,rtxt="none found";
@@ -1205,6 +1360,8 @@ function score(){
     const cover = matched>=3?1 : matched===2?0.85 : 0.55;
     rpts=40*acc*cover;
     rtxt=matched+" partial"+(matched>1?"s":"")+", mean "+(mean*100).toFixed(1)+"%";
+  }else if(closest){
+    rtxt="closest "+closest.rat.toFixed(2)+"→"+closest.id+" at "+(closest.e*100).toFixed(1)+"% — outside tolerance";
   }
   pts+=rpts;
   rows.push(["Mode ratios",rtxt,rpts,rpts>26?"ok":rpts<12?"no":""]);
@@ -1241,16 +1398,22 @@ function score(){
     Math.round(total)+"</b></td></tr>";
 
   /* Solve the other way: hold the geometry you measured, ask which metals could
-     produce this pitch. Usually several — which is why a single fundamental can
-     never name an alloy, only rule some out.                                   */
+     produce this pitch, restricted to the family you've already declared. This
+     used to scan every alloy in the table, gold included, on the theory that a
+     cross-metal match could catch a coin struck in an unexpected metal entirely
+     — but gold and silver differ in density by nearly 2x, so that specific
+     confusion is already caught by a scale before the ring matters, and a base-
+     metal comparison against a precious-metal coin was never a meaningful
+     question either. Locking to the declared family is what "consistent with
+     this pitch" should have meant from the start.                             */
   const tol=band+ (dev<0?wr:0) + 0.02;
   const fit=Object.keys(ALLOYS).filter(k=>{
+    if(ALLOYS[k].mt!==ALLOYS[c.key].mt) return false;
     const q=predict(0,c.dia,rhoOf(k),ALLOYS[k].E,ALLOYS[k].nu,c.qmat,c.sup,p.h);
     return Math.abs(r.f0-q.f[0])/q.f[0] <= tol;
   });
-  $("fitline").innerHTML = "<b>Consistent with this pitch at your measured geometry:</b> "+
-    (fit.length ? fit.map(k=>ALLOYS[k].n.split(" — ")[0]).join(" · ")
-                : "nothing in the alloy table")+
+  $("fitline").innerHTML = "<b>Consistent with this pitch at your measured geometry, within "+ALLOYS[c.key].mt+":</b> "+
+    (fit.length ? fit.map(k=>ALLOYS[k].n.split(" — ")[0]).join(" · ") : "nothing in "+ALLOYS[c.key].mt)+
     "<br><span style='opacity:.75'>Listed because they match, not because the coin is one of them. "+
     (fit.length>1?"More than one metal fits, so this reading cannot name a material — only narrow the field."
                  :"Even a single match is one number, √(E/ρ); treat it as a direction, not an identification.")+"</span>";
