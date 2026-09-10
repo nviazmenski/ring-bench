@@ -202,12 +202,26 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   }
   .readoutcol{display:flex;flex-direction:column;min-width:0;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
   .readoutcol .caveat,.readoutcol .transport{margin-bottom:0}
+  /* Every direct child gets flex-shrink:0. Without it, a flex column under
+     height pressure is allowed to shrink its children below their natural
+     content size rather than scrolling — and .lcd's overflow:hidden turns
+     that shrink into silent clipping instead of an obvious layout break.
+     This is exactly the kind of thing that differs across engines: nothing
+     here forces the failure on every browser, so it can pass everywhere it
+     was actually tested and only show up later, on whatever device someone
+     happens to try it on next.                                             */
+  .readoutcol>*{flex-shrink:0}
   .panecol{display:flex;flex-direction:column;min-height:0;height:100%;min-width:0}
 
   /* tabs pinned at top of the right column, active pane scrolls beneath */
   .panecol .tabs{flex:none;margin-bottom:12px}
   .panecol .pane{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px;min-height:0}
   .pane[hidden]{display:none}
+
+  /* Listen only: spectrogram/capture card beside the Reading card, not above
+     it — this is the one pane wide enough, and worth it enough, to earn a
+     second column of its own within the already-widened right side.        */
+  #p-listen .listenSplit{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
 
   /* let the spectrogram use the extra vertical room it now has */
   #spec{height:340px}
@@ -307,6 +321,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
 
   <!-- ═══ LISTEN ═══ -->
   <section class="pane" id="p-listen" hidden>
+    <div class="listenSplit">
     <div class="card">
       <button id="arm" class="wide primary">Arm microphone</button>
       <div class="meter"><i id="lvl"></i></div>
@@ -346,6 +361,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
       </div>
       <div id="refline" class="note" style="margin-top:11px"></div>
       <div class="btnrow" style="margin-top:9px"><button id="clearref">Clear reference</button></div>
+    </div>
     </div>
   </section>
 
@@ -864,6 +880,15 @@ function loadCoin(i){
   $("mass").value=c.m;$("dia").value=c.d;$("alloy").value=c.a;
   $("emod").value=ALLOYS[c.a].E;$("nu").value=ALLOYS[c.a].nu;
   if(!cmpLocked){ cmp=i; $("cmpCoin").value=String(i); }
+  /* A reading is a measurement of whatever coin was actually struck — it
+     stops meaning anything the moment a different coin is selected, since
+     it would otherwise sit there getting silently re-scored against a
+     prediction for metal it was never struck as. Same reset the "Clear
+     reading" button already does, triggered here instead of by hand.      */
+  if(reading){
+    reading=null;$("resultCard").style.display="none";
+    if(armed) setStatus("Coin changed — strike again to measure it.",true);
+  }
   render();
 }
 function current(){
@@ -1447,26 +1472,49 @@ function drawSpec(){
   const fmax=Math.max(p.f[2]*1.6, pb.f[0]*1.25, reading?reading.f0*3.2:0, 2000);
   const X=f=>26+(W-38)*f/fmax;
   const cGold=CV("--gold"),cHi=CV("--goldhi"),cDim=CV("--dim"),cLn=CV("--line2"),cCmp=CV("--cool");
+  const Ytop=14, Ybase=H-21;
+  const Ydb=db=>Ybase-Math.max(0,(db+60)/60)*(Ybase-Ytop-9);
+
+  /* dB reference grid — the plot previously had frequency labels but nothing
+     at all marking the vertical scale, so "how tall is this peak" had no
+     answer besides eyeballing it against other peaks in the same plot.     */
+  g.font="9px ui-monospace,monospace";g.textAlign="left";
+  [-10,-20,-30,-40,-50].forEach(db=>{
+    const y=Ydb(db);
+    g.strokeStyle=cLn;g.globalAlpha=.35;g.lineWidth=1;
+    g.beginPath();g.moveTo(26,y);g.lineTo(W-12,y);g.stroke();
+    g.fillStyle=cDim;g.globalAlpha=.5;g.fillText(db+"",2,y+3);
+  });
+  g.globalAlpha=1;
 
   if(reading){
     const mag=reading.mag, binHz=reading.binHz;
     let peak=0;const n=Math.min(mag.length,Math.ceil(fmax/binHz));
     for(let i=2;i<n;i++)if(mag[i]>peak)peak=mag[i];
-    g.beginPath();g.moveTo(26,H-21);
+    const pts=[];
     for(let px=26;px<W-12;px++){
       const i=Math.round((px-26)/(W-38)*fmax/binHz);
       const v=(i<n&&i>1)?mag[i]/(peak||1):0;
-      g.lineTo(px,H-21-Math.max(0,(20*Math.log10(v+1e-6)+60)/60)*(H-44));
+      pts.push([px, Ybase-Math.max(0,(20*Math.log10(v+1e-6)+60)/60)*(Ybase-Ytop-9)]);
     }
-    g.lineTo(W-12,H-21);g.closePath();
-    g.fillStyle=cGold;g.globalAlpha=.13;g.fill();
-    g.strokeStyle=cGold;g.globalAlpha=.55;g.lineWidth=1;g.stroke();g.globalAlpha=1;
+    const grad=g.createLinearGradient(0,Ytop,0,Ybase);
+    grad.addColorStop(0,"rgba(0,0,0,0)");
+    grad.addColorStop(1,cGold);
+    g.beginPath();g.moveTo(26,Ybase);
+    pts.forEach(pt=>g.lineTo(pt[0],pt[1]));
+    g.lineTo(W-12,Ybase);g.closePath();
+    g.fillStyle=grad;g.globalAlpha=.22;g.fill();g.globalAlpha=1;
+
+    g.beginPath();pts.forEach((pt,i)=>i===0?g.moveTo(pt[0],pt[1]):g.lineTo(pt[0],pt[1]));
+    g.shadowColor=cGold;g.shadowBlur=4;
+    g.strokeStyle=cGold;g.globalAlpha=.7;g.lineWidth=1.1;g.stroke();
+    g.shadowBlur=0;g.globalAlpha=1;
   }
 
   if(pb.f[0]<=fmax){
     const x=X(pb.f[0]);
     g.strokeStyle=cCmp;g.globalAlpha=.7;g.lineWidth=1;g.setLineDash([2,5]);
-    g.beginPath();g.moveTo(x,14);g.lineTo(x,H-21);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+    g.beginPath();g.moveTo(x,Ytop);g.lineTo(x,Ybase);g.stroke();g.setLineDash([]);g.globalAlpha=1;
     g.fillStyle=cCmp;g.font="10px ui-monospace,monospace";g.textAlign="center";
     g.fillText("cmp",x,11);
   }
@@ -1474,9 +1522,12 @@ function drawSpec(){
   MODES.forEach((m,i)=>{
     if(p.f[i]>fmax)return;
     const dead=p.Q[i]<p.Q[0]*0.4, x=X(p.f[i]);
-    g.strokeStyle=dead?cDim:cHi;g.globalAlpha=dead?.4:.85;
+    const lineGrad=g.createLinearGradient(0,Ytop,0,Ybase);
+    const col=dead?cDim:cHi;
+    lineGrad.addColorStop(0,col);lineGrad.addColorStop(1,"rgba(0,0,0,0)");
+    g.strokeStyle=i===0?col:lineGrad;g.globalAlpha=dead?0.4:0.85;
     g.lineWidth=i===0?2:1;g.setLineDash(dead?[3,4]:[]);
-    g.beginPath();g.moveTo(x,14);g.lineTo(x,H-21);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+    g.beginPath();g.moveTo(x,Ytop);g.lineTo(x,Ybase);g.stroke();g.setLineDash([]);g.globalAlpha=1;
     g.fillStyle=dead?cDim:cHi;
     g.font="10px ui-monospace,monospace";g.textAlign="center";
     g.fillText(m.id,x,11);
@@ -1485,17 +1536,21 @@ function drawSpec(){
   if(reading){
     reading.peaks.forEach(q=>{
       if(q.f>fmax)return;
-      g.fillStyle=Math.abs(q.f-reading.f0)<1?"#8FD9A8":"#C9603F";
-      g.beginPath();g.arc(X(q.f),H-21,3.5,0,7);g.fill();
+      const isF0=Math.abs(q.f-reading.f0)<1, x=X(q.f), col=isF0?"#8FD9A8":"#C9603F";
+      g.strokeStyle=col;g.globalAlpha=.28;g.lineWidth=1;
+      g.beginPath();g.moveTo(x,Ybase);g.lineTo(x,Ybase-10);g.stroke();g.globalAlpha=1;
+      g.fillStyle=col;g.globalAlpha=.25;
+      g.beginPath();g.arc(x,Ybase,7,0,7);g.fill();g.globalAlpha=1;
+      g.beginPath();g.arc(x,Ybase,3.5,0,7);g.fill();
     });
     const x=X(reading.f0);
     g.strokeStyle="#8FD9A8";g.lineWidth=1.5;
-    g.beginPath();g.moveTo(x,18);g.lineTo(x,H-21);g.stroke();
+    g.beginPath();g.moveTo(x,18);g.lineTo(x,Ybase);g.stroke();
   }
 
   g.fillStyle=cDim;g.globalAlpha=.65;g.font="10px ui-monospace,monospace";
   g.strokeStyle=cLn;g.globalAlpha=1;g.lineWidth=1;
-  g.beginPath();g.moveTo(26,H-21);g.lineTo(W-12,H-21);g.stroke();
+  g.beginPath();g.moveTo(26,Ybase);g.lineTo(W-12,Ybase);g.stroke();
   const step=fmax>16000?4000:fmax>8000?2000:fmax>3000?1000:250;
   g.fillStyle=cDim;g.globalAlpha=.65;
   for(let f=0;f<=fmax;f+=step){g.textAlign="center";g.fillText((f/1000).toFixed(f<1000?1:0)+"k",X(f),H-7);}
