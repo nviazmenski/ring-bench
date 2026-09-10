@@ -120,7 +120,7 @@ body[data-viewmode="simple"] .adv{display:none}
 .cardhead{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
   margin:0 0 13px;padding-bottom:9px;border-bottom:1px solid var(--line2)}
 label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 6px}
-select,input[type=number]{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+select,input[type=number],input[type=text]{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
   border-radius:8px;padding:12px;font-family:var(--mono);font-size:16px;-webkit-appearance:none;appearance:none}
 select{background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(135deg,var(--gold) 50%,transparent 50%);
   background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
@@ -226,6 +226,11 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   /* let the spectrogram use the extra vertical room it now has */
   #spec{height:340px}
 }
+input[type="checkbox"]{width:auto;display:inline-block;min-height:0;margin-right:.5rem;}
+label.note{display:block;margin:.5rem 0;}
+button:disabled{opacity:.45;cursor:not-allowed;}
+#inputerror{color:var(--bad);}
+#score td{white-space:normal;overflow-wrap:anywhere;}
 </style>
 </head>
 <body data-viewmode="simple">
@@ -253,9 +258,9 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
       <div><b id="cT">—</b><span id="cTlab">t mm</span></div>
       <div><b id="cRho">—</b><span>&rho; g/cc</span></div>
     </div>
-    <div class="meas"><i class="dot" id="mdot"></i><span id="measline">No reading — arm the microphone on Listen</span></div>
+    <div class="meas"><i class="dot" id="mdot"></i><span id="measline">No result — start a three-strike test on Listen</span></div>
   </div>
-  <div class="caveat">Material and structure · not a test of dies</div>
+  <div class="caveat">Acoustic consistency · not a fineness assay</div>
 
   <!-- ═══ transport ═══ -->
   <div class="transport">
@@ -275,7 +280,8 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
     <p class="note">Fine metal content only — the alloy's precious-metal fraction times mass, at the price you enter. Manual and static: nothing here calls out to the internet.</p>
   </div>
 
-  <div id="tpwarn" style="display:none"></div>
+  <p id="inputerror" role="alert" class="note" hidden></p>
+<div id="tpwarn" style="display:none"></div>
   <div id="upd" style="display:none"></div>
 </div>
 
@@ -301,7 +307,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         <div><label for="grip">Support</label><select id="grip"></select></div>
         <div><label for="trans">Transpose st</label><input id="trans" type="number" step="1" value="0" inputmode="decimal"></div>
       </div>
-      <p class="note"><b>Leave this at zero unless you know why you are moving it.</b> It shifts playback only — never the measurement, never the score — but a synthesised ring an octave off the real one is the fastest way to talk yourself into a match that is not there. The panel turns red whenever it is non-zero. Phone speakers give up around 4 kHz, so if you must transpose to hear anything, use headphones instead and leave this alone.</p>
+      <p class="note"><b>Leave this at zero unless you know why you are moving it.</b> It shifts playback only — never the measurement or verdict — but a synthesised ring an octave off the real one is the fastest way to talk yourself into a match that is not there. The panel turns red whenever it is non-zero. Phone speaker response varies. Use headphones for quiet playback; stop playback before measuring a strike.</p>
     </div>
 
     <div class="card adv">
@@ -315,7 +321,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         <button id="playB">Play comparison</button>
       </div>
       <p class="note" style="margin-top:12px">Your planchet, wrong metal — mass follows density, so the comparison shows what the same disc would weigh in that alloy. It follows the coin under test until you point it somewhere else; set it back to the same coin and it starts following again. The interval is worth learning by ear, but the mass line underneath it is what actually catches the coin.</p>
-      <p class="note"><b>To check the bench against reality, use Britain.</b> In 1947 five denominations went from .500 silver to cupronickel with mass and diameter unchanged — a controlled experiment you can hold. Put a shilling on the panel and step the comparison through sterling, .500 and cupronickel. Predicted: 6,583 Hz, 7,967 Hz, 10,868 Hz. If a 1946 and a 1950 shilling do not land near those, the model is wrong and you should trust it less everywhere else.</p>
+      <p class="note">A/B playback holds planchet dimensions fixed and changes alloy; the displayed mass follows density. It is an illustration, not the candidate-alloy test used in the result. Validate predictions using measured genuine specimens before relying on them.</p>
     </div>
   </section>
 
@@ -323,9 +329,10 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   <section class="pane" id="p-listen" hidden>
     <div class="listenSplit">
     <div class="card">
-      <button id="arm" class="wide primary">Arm microphone</button>
+      <button id="arm" class="wide primary">Start three-strike test</button>
       <div class="meter"><i id="lvl"></i></div>
-      <div id="status" class="status">Tap arm, allow the microphone, then strike the coin about 15 cm away.</div>
+      <div id="status" class="status" role="status" aria-live="polite">Start a test, allow the microphone, then strike the coin about 15 cm away. Keep support and distance unchanged for all three strikes.</div>
+      <p id="testprogress" class="note" aria-live="polite">Three usable strikes per test. Provisional repeatability limit: 1% total frequency spread.</p>
       <canvas id="spec" height="190" style="margin-top:12px"></canvas>
       <div class="row" style="margin-top:13px">
         <div><label for="thresh">Trigger dB over floor</label><input id="thresh" type="number" step="1" value="18" inputmode="decimal"></div>
@@ -335,8 +342,8 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         <div><label for="crest">Min tone prominence dB</label><input id="crest" type="number" step="1" value="26" inputmode="decimal"></div>
         <div><label for="cooldown">Cooldown after a reading, ms</label><input id="cooldown" type="number" step="100" value="1500" inputmode="decimal"></div>
       </div>
-      <p class="note">A struck coin's spectrum is one or two narrow spikes towering over near-silence. Room noise, handling, and voices are comparatively flat — energy smeared across many bins with nothing dominating. This is the gap between the two, and a capture that doesn't clear it is discarded before it ever touches the reading: no verdict, no spectrogram change, nothing on screen. If genuine strikes get ignored, lower this. If ordinary noise keeps producing "anomalous" readings, raise it.</p>
-      <p class="note">The cooldown is separate from that gate. Passing the prominence check only means something rang, not that it was your coin — a nearby vendor's own strike, on a crowded show floor, clears it just as easily. Without a pause, whichever sound crosses the trigger next simply overwrites the reading on screen, good or not. Raise this if a good result keeps getting replaced moments after it appears; lower it if you're being made to wait between deliberate strikes of your own.</p>
+      <p class="note">Each capture must pass clipping, length, tonal prominence and pre-strike noise checks. Rejected captures do not count toward the three strikes. Wait for the ring to stop before striking again. Two distinct upper modes must recur in all three strikes for an acoustic verdict.</p>
+      <p class="note">The three-strike result freezes for review. A nearby coin or speaker can still supply the sound: isolate your specimen. A reported sample rate does not establish the microphone's actual bandwidth. Loaded files need one strike, at least 60 ms of quiet before it, and half a second after it.</p>
       <div class="btnrow">
         <button id="upload">Load a recording</button>
         <button id="again">Clear reading</button>
@@ -347,7 +354,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
     <div class="card" id="resultCard" style="display:none">
       <div class="cardhead">Reading</div>
       <div id="verdict"></div>
-      <table><thead><tr><th>Check</th><th style="text-align:right">Result</th><th style="text-align:right">Pts</th></tr></thead>
+      <table><thead><tr><th>Check</th><th style="text-align:right">Result</th></tr></thead>
       <tbody id="score"></tbody></table>
       <div id="fitline" class="note" style="margin-top:12px"></div>
       <div class="adv">
@@ -357,8 +364,12 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
       </div>
       <div class="btnrow" style="margin-top:14px">
         <button id="playMeasured">Play what was measured</button>
-        <button id="saveref" class="primary">Save as reference</button>
+        <button id="saveref" class="primary" disabled>Save three-strike reference</button>
+        <button id="exporttest">Export test JSON</button>
       </div>
+      <label class="note"><input id="reftrusted" type="checkbox"> I independently trust this reference specimen.</label>
+      <label for="refnote">Reference provenance</label><input id="refnote" type="text" maxlength="240" placeholder="Why you trust this specimen">
+      <p class="note">Saving requires three repeatable strikes and confirmed measured dimensions. References are local to this device; export a test to preserve its evidence.</p>
       <div id="refline" class="note" style="margin-top:11px"></div>
       <div class="btnrow" style="margin-top:9px"><button id="clearref">Clear reference</button></div>
     </div>
@@ -368,7 +379,11 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   <!-- ═══ SPECS ═══ -->
   <section class="pane" id="p-specs" hidden>
     <div class="card">
-      <div class="cardhead">Measured dimensions</div>
+      <div class="cardhead">Dimensions and provenance</div>
+      <p id="catalogue" class="note"></p>
+      <label class="note"><input id="massMeasured" type="checkbox"> Mass was measured on my scale</label>
+      <label class="note"><input id="diaMeasured" type="checkbox"> Diameter was measured with calipers</label>
+      <label class="note"><input id="thicknessMeasured" type="checkbox"> Rim thickness was measured with calipers</label>
       <div class="row3">
         <div><label for="mass">Mass g</label><input id="mass" type="number" step="0.0001" inputmode="decimal"></div>
         <div><label for="dia">Diameter mm</label><input id="dia" type="number" step="0.01" inputmode="decimal"></div>
@@ -392,7 +407,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
           <option value="5">G / VG — heavy</option>
         </select></div>
       </div>
-      <p class="note" style="margin-bottom:13px">Wear comes off the faces, so it is thickness that goes, and frequency follows thickness one for one. A worn coin therefore rings <b>flat</b> of the catalogue figure and can never ring sharp of it. This widens the acceptance band downward only. It does not move the prediction — a worn coin simply carries less information, and the panel should admit that rather than pretend to a precision it lost in circulation.</p>
+      <p class="note" style="margin-bottom:13px">Wear allowance is a provisional downward pitch tolerance for catalogue geometry only. It is ignored when the relevant mass or thickness is confirmed measured, to avoid counting the same loss twice. Relief and rim changes are not represented by a flat-disc model.</p>
       <div id="calib" class="note" style="margin-bottom:13px"></div>
       <p class="note">Use your own figures, not the catalogue's. Thickness is what the model needs; mass is one way to get it, calipers are the other. Switch below if you are working without a scale.</p>
       <div class="adv">
@@ -404,14 +419,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
         </div>
         <p class="note">Modulus is the largest single uncertainty in every absolute frequency here, roughly ±8%. Mode ratios are untouched by it.</p>
       </details>
-      <details>
-        <summary>Q calibration for scoring</summary>
-        <div class="row" style="margin-top:10px">
-          <div><label for="qlo">No credit below</label><input id="qlo" type="number" step="10" value="80" inputmode="decimal"></div>
-          <div><label for="qhi">Full credit above</label><input id="qhi" type="number" step="50" value="3000" inputmode="decimal"></div>
-        </div>
-        <p class="note">Q is the softest number on this bench, worse than modulus. Strike three coins you are certain of, take the lowest Q you see, put the floor under it.</p>
-      </details>
+      <p class="note">Measured Q is diagnostic only. Decay needs an R² of at least 0.90 and an 8 dB span to be reported. Material Q above controls synthesized playback, not the verdict.</p>
       </div>
     </div>
 
@@ -427,7 +435,7 @@ hr{border:none;border-top:1px solid var(--line2);margin:14px 0}
   </section>
 </div>
 
-  <div class="foot">Leissa eigenvalues · density by elemental mass fraction</div>
+  <div class="foot">Free-plate model · provisional tolerances</div>
 </div>
 
 <script>
@@ -653,15 +661,14 @@ const flat=[];COINS.forEach(g=>g.items.forEach(c=>flat.push(c)));
    ∇²I = +λ²I) the 2×2 determinant is
      moment  row:  λ²Jₙ'' + νλJₙ' − νn²Jₙ    |  λ²Iₙ'' + νλIₙ' − νn²Iₙ
      shear   row:  −λ³Jₙ' − (1−ν)n²(λJₙ'−Jₙ)  |  +λ³Iₙ' − (1−ν)n²(λIₙ'−Iₙ)
-   Root-found with scipy at ν=1/3, it reproduces all six of Leissa's
-   published values to within 0.12% mean (worst 0.5% on the one he quotes
-   to only three figures) — across n=0..4 and both nodal-circle counts.
-   That agreement is the validation; the equation was not trusted until it
-   passed it. See eig.py in the repo.
+   Coefficients below are retained from the preceding build. A 13-point check
+   over nu=0.20..0.50 against the separately supplied eig.py solver found a
+   maximum relative discrepancy of about 0.0033%. This is agreement with that
+   solver, not independent validation of real coins or Leissa's source table.
+   The supplied table comparison mixes nu=.33 and 1/3 in its documentation;
+   the (4,0) reference discrepancy remains unresolved.
 
-   What ships here is a cubic in ν per mode, fitted over ν∈[0.20,0.50] with
-   max error 0.003% — thirty times tighter than the table it replaces, and
-   it needs no Bessel functions in the browser. lam2(i,ν) evaluates it.
+   The browser evaluates the cubic only; no Python or Bessel runtime is loaded.
    centreNode: a nodal line passes through the centre — true for every mode
    with at least one nodal diameter, false for the axisymmetric ones.      */
 const MODES=[
@@ -709,30 +716,140 @@ function noteOf(f){
 }
 const sp=n=>n.toLocaleString("en-US",{useGrouping:true}).replace(/,/g,"\u2009");
 
+/* Reliability thresholds are provisional engineering gates, not assay accuracy. */
+const RULES=Object.freeze({version:2,strikes:3,repeatability:0.01,modeTolerance:0.05,
+  theoryPitch:0.08,referencePitch:0.015,minSnrDb:10,minDecayR2:0.90,minDecaySpanDb:8});
+const BUILD="2026-09-10.reliability-1";
+const MODEL="free-plate-cubic-v1";
+const LIMITS={mass:[0.01,1000],dia:[2,200],emod:[1,500],nu:[0.20,0.50],qmat:[1,100000],
+  trim:[0.01,20],rimf:[0.1,1.5],wear:[0,5],trans:[-24,24],thresh:[3,60],skip:[0,50],
+  crest:[5,80],cooldown:[500,10000]};
+const SETTING_IDS=["mass","dia","alloy","emod","nu","qmat","grip","tsrc","trim","rimf","wear",
+  "thresh","skip","crest","cooldown","massMeasured","diaMeasured","thicknessMeasured"];
+function inputError(){
+  for(const [id,[lo,hi]] of Object.entries(LIMITS)){
+    if((id==="trim"||id==="rimf") && $("tsrc").value!=="caliper") continue;
+    const el=$(id),v=Number(el.value);
+    if(el.value.trim()===""||!Number.isFinite(v)||v<lo||v>hi)
+      return (el.labels?.[0]?.textContent||id)+" must be between "+lo+" and "+hi+".";
+  }
+  return "";
+}
+function settingsSnapshot(){
+  const c=current();
+  return {coin:flat[sel].n,alloy:c.key,mass:c.mass,diameter:c.dia,E:c.E,nu:c.nu,
+    materialQ:c.qmat,support:c.sup,thicknessSource:$("tsrc").value,
+    rimThickness:$("tsrc").value==="caliper"?Number($("trim").value):null,
+    rimFactor:$("tsrc").value==="caliper"?Number($("rimf").value):null,
+    wear:Number($("wear").value),triggerDb:Number($("thresh").value),skipMs:Number($("skip").value),
+    crestDb:Number($("crest").value),cooldownMs:Number($("cooldown").value),
+    massMeasured:$("massMeasured").checked,diameterMeasured:$("diaMeasured").checked,
+    thicknessMeasured:$("thicknessMeasured").checked};
+}
+function referenceState(r,settings,source){
+  if(!r) return {usable:false,reason:"No reference: provisional theory tolerance ±8%."};
+  if(r.version!==RULES.version||!r.settings||!r.source||!r.repeatability||!Array.isArray(r.strikes)||r.strikes.length!==3||!r.trusted)
+    return {usable:false,reason:"Legacy or incomplete reference: retained, but not used for validation. Record three new strikes."};
+  if(r.model!==MODEL||r.build!==BUILD||JSON.stringify(r.settings)!==JSON.stringify(settings))
+    return {usable:false,reason:"Reference conditions or build differ. Theory is used until a matching reference is recorded."};
+  if(!source) return {usable:false,reason:"Reference saved; recording conditions will be checked after capture."};
+  if(JSON.stringify(r.source)!==JSON.stringify(source))
+    return {usable:false,reason:"Reference audio source or rate differs. Using theory; do not assume microphone bandwidth from sample rate."};
+  if(!Number.isFinite(r.f0)||r.f0<=0||!Number.isFinite(r.repeatability.spread)||r.repeatability.spread>RULES.repeatability)
+    return {usable:false,reason:"Invalid reference; using theory."};
+  return {usable:true,reason:"Matching three-strike reference: provisional pitch tolerance ±1.5%."};
+}
+function median(xs){const a=xs.slice().sort((a,b)=>a-b);return a.length%2?a[a.length>>1]:(a[a.length/2-1]+a[a.length/2])/2;}
+/* Small bitmask assignment: a peak and a mode can each contribute at most once. */
+function matchModes(peaks,f0,nu,usableHz,tolerance=RULES.modeTolerance){
+  const ratios=ratiosAt(nu);
+  let states=new Map([[0,{matches:[],error:0}]]);
+  for(const peak of peaks){
+    if(Math.abs(peak.f/f0-1)<0.02||peak.f>usableHz) continue;
+    const next=new Map(states);
+    for(const [mask,state] of states){
+      for(let i=1;i<ratios.length;i++){
+        const bit=1<<(i-1),error=Math.abs(peak.f/f0/ratios[i]-1);
+        if((mask&bit)||error>tolerance||f0*ratios[i]>usableHz) continue;
+        const candidate={matches:state.matches.concat({mode:i,f:peak.f,ratio:peak.f/f0,error}),error:state.error+error};
+        const old=next.get(mask|bit);
+        if(!old||candidate.error<old.error) next.set(mask|bit,candidate);
+      }
+    }
+    states=next;
+  }
+  return [...states.values()].sort((a,b)=>b.matches.length-a.matches.length||a.error-b.error)[0].matches;
+}
+function selectFundamental(pk,predicted,nu,usableHz){
+  let candidates=pk.filter(p=>p.f>=predicted*.55&&p.f<=predicted*1.75);
+  const offwindow=!candidates.length;
+  if(offwindow)candidates=[pk.reduce((a,b)=>a.mag>b.mag?a:b)];
+  const fits=candidates.map(p=>({f0:p.f,mag:p.mag,offwindow,matches:matchModes(pk,p.f,nu,usableHz)}));
+  fits.sort((a,b)=>b.matches.length-a.matches.length||
+    (a.matches.reduce((s,m)=>s+m.error,0)-b.matches.reduce((s,m)=>s+m.error,0))||
+    Math.abs(Math.log(a.f0/predicted))-Math.abs(Math.log(b.f0/predicted))||b.mag-a.mag);
+  return fits[0];
+}
+function rejectAmbient(pk,bodySpec,preSpec,bodyLength,preLength){
+  const scale=bodyLength/Math.max(1,preLength);
+  return pk.filter(p=>{
+    const bin=Math.round(p.f/bodySpec.binHz);let n=0;
+    for(let d=-1;d<=1;d++)n=Math.max(n,preSpec.mag[bin+d]||0);
+    p.snrDb=20*Math.log10((p.mag+1e-30)/(n*scale+1e-30));
+    return p.snrDb>=RULES.minSnrDb;
+  });
+}
+function candidatePrediction(c,key){
+  const a=ALLOYS[key];
+  // Each density hypothesis must explain the SAME mass, or the SAME caliper thickness.
+  return predict(c.mass,c.dia,rhoOf(key),a.E,a.nu,c.qmat,c.sup,c.hmm);
+}
+function summarizeStrikes(strikes){
+  const f0=median(strikes.map(s=>s.f0));
+  const spread=(Math.max(...strikes.map(s=>s.f0))-Math.min(...strikes.map(s=>s.f0)))/f0;
+  const representative=strikes.reduce((a,b)=>Math.abs(a.f0-f0)<Math.abs(b.f0-f0)?a:b);
+  const commonModes=representative.matches.filter(m=>{
+    const observations=strikes.map(s=>s.matches.find(x=>x.mode===m.mode));
+    if(observations.some(x=>!x))return false;
+    const frequencies=observations.map(x=>x.f);
+    return (Math.max(...frequencies)-Math.min(...frequencies))/median(frequencies)<=RULES.repeatability;
+  }).map(m=>m.mode);
+  return {...representative,f0,spread,commonModes,strikes:strikes.slice(),complete:strikes.length===RULES.strikes};
+}
+function evaluateReading(r,c,ref){
+  const reference=referenceState(ref,r.settings,r.source);
+  const expected=reference.usable?ref.f0:P(c).f[0];
+  const band=reference.usable?RULES.referencePitch:RULES.theoryPitch;
+  const dev=r.f0/expected-1;
+  // Measured geometry already accounts for thickness/mass loss; no extra wear discount.
+  const measured=r.settings.thicknessSource==="caliper"?r.settings.thicknessMeasured:r.settings.massMeasured;
+  const wear=measured?0:r.settings.wear/100;
+  const pitchOK=dev<=band && dev>=-band-wear;
+  const repeatable=r.complete&&r.spread<=RULES.repeatability;
+  const sufficient=r.commonModes.length>=2&&r.strikes.every(s=>!s.offwindow);
+  const state=!repeatable||!sufficient?"inconclusive":pitchOK?"consistent":"mismatch";
+  return {reference,expected,band,dev,wear,pitchOK,repeatable,sufficient,state};
+}
+
+
 /* ───────── state ───────── */
 let sel=0, cmp=0, cmpLocked=false, reading=null, refs={}, store="none";
 const REFKEY="ringbench.refs";
 /* Two possible homes for saved references. A hosted page or home-screen app gets
    localStorage. Inside a Claude artifact localStorage is inert, so window.storage
    is used instead — it is async, hence the reload-then-rerender at boot.        */
-function saveRefs(){
-  const j=JSON.stringify(refs);
-  try{ localStorage.setItem(REFKEY,j); if(store==="none") store="local"; }catch(e){}
-  if(window.storage){ try{ window.storage.set(REFKEY,j); store="cloud"; }catch(e){} }
+async function saveRefs(){
+  try{localStorage.setItem(REFKEY,JSON.stringify(refs));store="local";return true;}
+  catch(e){store="off";return false;}
 }
 async function loadRefs(){
-  try{ const v=localStorage.getItem(REFKEY); if(v){refs=JSON.parse(v);store="local";} }catch(e){}
-  if(window.storage){
-    try{
-      const r=await window.storage.get(REFKEY);
-      if(r&&r.value) refs=Object.assign(refs,JSON.parse(r.value));
-      store="cloud";
-    }catch(e){ store="cloud"; }          /* key absent simply means nothing saved yet */
-  }
-  if(store==="none"){
-    try{ localStorage.setItem(REFKEY+".probe","1"); localStorage.removeItem(REFKEY+".probe"); store="local"; }
-    catch(e){ store="off"; }
-  }
+  try{
+    const value=JSON.parse(localStorage.getItem(REFKEY)||"{}");
+    if(value&&typeof value==="object"&&!Array.isArray(value)){
+      refs=Object.fromEntries(Object.entries(value).filter(([k,v])=>v&&typeof v==="object"&&Number.isFinite(v.f0)&&v.f0>0));
+    }
+    localStorage.setItem(REFKEY+".probe","1");localStorage.removeItem(REFKEY+".probe");store="local";
+  }catch(e){store="off";}
   render();
 }
 
@@ -877,33 +994,29 @@ function populateCoinSelect(region){
 })();
 
 function loadCoin(i){
+  invalidateTest("Coin changed — start a new three-strike test.");
   sel=i;const c=flat[i];
+  $("trim").value="";$("rimf").value="1.000";$("tsrc").value="mass";
+  $("wear").value="0";$("grade").value="0";
+  ["massMeasured","diaMeasured","thicknessMeasured","reftrusted"].forEach(id=>$(id).checked=false);
+  $("refnote").value="";
   const r=regionOf(i);
   if($("coinRegion").value!==r){ $("coinRegion").value=r; populateCoinSelect(r); }
   $("coin").value=String(i);
   $("mass").value=c.m;$("dia").value=c.d;$("alloy").value=c.a;
   $("emod").value=ALLOYS[c.a].E;$("nu").value=ALLOYS[c.a].nu;
   if(!cmpLocked){ cmp=i; $("cmpCoin").value=String(i); }
-  /* A reading is a measurement of whatever coin was actually struck — it
-     stops meaning anything the moment a different coin is selected, since
-     it would otherwise sit there getting silently re-scored against a
-     prediction for metal it was never struck as. Same reset the "Clear
-     reading" button already does, triggered here instead of by hand.      */
-  if(reading){
-    reading=null;$("resultCard").style.display="none";
-    if(armed) setStatus("Coin changed — strike again to measure it.",true);
-  }
   render();
 }
 function current(){
   const key=$("alloy").value, al=ALLOYS[key];
   return {name:flat[sel].n,key:key,
-    mass:parseFloat($("mass").value)||flat[sel].m,
-    dia :parseFloat($("dia").value)||flat[sel].d,
+    mass:Number($("mass").value),
+    dia :Number($("dia").value),
     rho :rhoOf(key),
-    E   :parseFloat($("emod").value)||al.E,
-    nu  :parseFloat($("nu").value)||0.42,
-    qmat:parseFloat($("qmat").value)||2000,
+    E   :Number($("emod").value),
+    nu  :Number($("nu").value),
+    qmat:Number($("qmat").value),
     sup :$("grip").value,
     hmm :caliperT()};
 }
@@ -921,11 +1034,11 @@ function caliperT(){
    When it is pointed at the coin under test, it uses your measured figures.  */
 function comparison(){
   const key=$("cmpAlloy").value, al=ALLOYS[key], rho=rhoOf(key);
-  const nu=parseFloat($("nu").value)||0.42, qmat=parseFloat($("qmat").value)||2000, sup=$("grip").value;
+  const nu=al.nu, qmat=parseFloat($("qmat").value)||2000, sup=$("grip").value;
   if(cmp===sel){
     const c=current();
     return {name:c.name,key:key,same:true,nominal:c.mass,
-      mass:c.mass*rho/c.rho,dia:c.dia,rho:rho,E:al.E,nu:nu,qmat:qmat,sup:sup,hmm:c.hmm};
+      mass:c.hmm>0?Math.PI*(c.dia/20)**2*(c.hmm/10)*rho:c.mass*rho/c.rho,dia:c.dia,rho:rho,E:al.E,nu:nu,qmat:qmat,sup:sup,hmm:c.hmm};
   }
   const c=flat[cmp];
   return {name:c.n,key:key,same:false,nominal:c.m,
@@ -944,6 +1057,20 @@ function theme(){
 }
 function render(){
   theme();
+  const error=inputError();
+  $("inputerror").textContent=error;$("inputerror").hidden=!error;
+  ["playA","playB","playAB","playMeasured","arm","upload"].forEach(id=>$(id).disabled=!!error);
+  ["playA","playB","playAB","playMeasured"].forEach(id=>$(id).disabled=!!error||!!session&&!reading?.complete);
+  if(error){
+    $("f0").textContent="—";$("pitch").textContent="Correct the input in Specs or Listen";
+    ["cTau","cQ","cT","cRho"].forEach(id=>$(id).textContent="—");
+    $("measline").textContent="Inputs invalid — no prediction or verdict";
+    $("resultCard").style.display="none";$("mdot").className="dot";return;
+  }
+  const nominal=flat[sel];
+  $("catalogue").textContent="Catalogue: "+nominal.m+" g · "+nominal.d+" mm. Entered mass "+
+    ((Number($("mass").value)/nominal.m-1)*100).toFixed(2)+"%; diameter "+
+    ((Number($("dia").value)/nominal.d-1)*100).toFixed(2)+"% versus catalogue. Check boxes only for your own measurements.";
   const c=current(), p=P(c);
 
   $("f0").textContent=sp(Math.round(p.f[0]));
@@ -964,7 +1091,7 @@ function render(){
   const hMass=predict(mass||c.mass,c.dia,c.rho,c.E,c.nu,c.qmat,c.sup,0).h;
   $("calib").innerHTML = (tm>0 && mass>0)
     ? "<b>Calibration:</b> mass gives a mean thickness of "+hMass.toFixed(3)+" mm against your "+tm.toFixed(2)+
-      " mm rim reading — rim factor <b>"+(hMass/tm).toFixed(3)+"</b>. Do this at home once per type, write the number down, and the field only needs calipers."
+      " mm rim reading — rim factor <b>"+(hMass/tm).toFixed(3)+"</b>. This assumes the declared density. An average thickness does not reproduce relief or rim stiffness; confirm the factor on a trusted specimen."
     : "Enter both a mass and a rim reading — on a coin you trust, at home — and this line gives you the rim factor to carry.";
   $("cRho").textContent=c.rho.toFixed(2);
 
@@ -989,30 +1116,31 @@ function render(){
       (ALLOYS[b.key].mag?"<br><b>"+(ALLOYS[b.key].mag>1?"Ferromagnetic — a magnet answers this faster and more definitively than any ring."
         :"Austenitic, so only weakly magnetic as annealed — but a struck coin is cold-worked, and cold work makes it respond. Try a magnet first.")+"</b>":"");
 
-  const r=refs[refKey()];
-  const where = store==="off" ? " <b style='color:var(--bad)'>This page cannot store references — they will vanish on reload.</b>" : "";
-  $("refline").innerHTML = (r
-    ? "Reference: <b>"+r.f0.toFixed(1)+" Hz</b>, Q "+Math.round(r.q)+", saved "+r.when+". Pitch tolerance ±1.5%."
-    : "No reference for this type. Pitch is judged against theory at ±8% and the score is capped at 80.") + where;
+  const r=refs[refKey()],rs=referenceState(r,settingsSnapshot(),reading?.source);
+  $("refline").textContent=rs.reason+(r?.when?" Saved "+String(r.when).slice(0,10)+".":"")+
+    (store==="off"?" Storage unavailable; references will not survive closing the page.":"");
 
   if(reading) score(); else {
     $("mdot").className="dot";
-    $("measline").textContent="No reading — arm the microphone on Listen";
+    $("measline").textContent="No result — start a three-strike test on Listen";
   }
   renderMelt();
   drawSpec();
 }
 const refKey=()=>flat[sel].n+"|"+$("alloy").value;
 
-["coin","mass","dia","alloy","emod","nu","qmat","grip","trans","tsrc","trim","rimf","wear"].forEach(id=>{
-  $(id).addEventListener("change",e=>{
-    if(id==="coin") return loadCoin(+e.target.value);
-    if(id==="alloy"){ const a=ALLOYS[e.target.value]; $("emod").value=a.E; $("nu").value=a.nu; }
-    render();
-  });
-  $(id).addEventListener("input",()=>{ if(id!=="coin") render(); });
+$("coin").addEventListener("change",e=>loadCoin(+e.target.value));
+SETTING_IDS.forEach(id=>{
+  const changed=()=>{
+    if(id==="alloy"){const a=ALLOYS[$("alloy").value];$("emod").value=a.E;$("nu").value=a.nu;}
+    invalidateTest();render();
+  };
+  $(id).addEventListener("input",changed);
+  $(id).addEventListener("change",changed);
 });
-$("grade").addEventListener("change",e=>{ $("wear").value=e.target.value; render(); });
+$("trans").addEventListener("input",render);
+$("trans").addEventListener("change",render);
+$("grade").addEventListener("change",e=>{$("wear").value=e.target.value;invalidateTest();render();});
 ["cmpCoin","cmpAlloy"].forEach(id=>{
   $(id).addEventListener("change",e=>{
     if(id==="cmpCoin"){ cmp=+e.target.value; cmpLocked=(cmp!==sel); }
@@ -1142,339 +1270,254 @@ function peaks(mag,binHz,fmin,fmax,maxN){
 }
 
 /* ═════════════════════ microphone ═════════════════════ */
-let stream=null,node=null,src=null,armed=false;
-const PRE=0.06, CAP=0.60;
-let ring=null,ringW=0,capBuf=null,capN=0,capping=false,noiseFloor=1e-4,capPeak=0,cooldownUntil=0;
-
-async function arm(){
-  if(armed){disarm();return;}
-  try{
-    const c=audio(); await c.resume();
-    stream=await navigator.mediaDevices.getUserMedia({audio:{
-      echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
-    src=c.createMediaStreamSource(stream);
-    node=c.createScriptProcessor(1024,1,1);
-    ring=new Float32Array(Math.ceil(PRE*c.sampleRate));ringW=0;
-    node.onaudioprocess=onBlock;
-    src.connect(node);
-    const mute=c.createGain();mute.gain.value=0;node.connect(mute);mute.connect(c.destination);
-    armed=true;$("arm").textContent="Listening — strike the coin";$("arm").className="wide armed";
-    setStatus("Armed at "+c.sampleRate+" Hz, usable to "+Math.round(c.sampleRate/2)+" Hz.",true);
-  }catch(e){
-    setStatus("Microphone unavailable: "+e.name+". Safari grants it only over https — a file opened from Files will always fail. Host it, or load a recording.");
-  }
-}
-function disarm(){
-  armed=false;capping=false;
-  try{node&&node.disconnect();src&&src.disconnect();stream&&stream.getTracks().forEach(t=>t.stop());}catch(e){}
+/* Explicit three-strike sessions. Every async stage checks the same generation. */
+let stream=null,node=null,src=null,armed=false,arming=false;
+const PRE=0.06,CAP=0.60;
+let ring=null,ringW=0,ringFilled=0,capBuf=null,capN=0,capOnset=0,capping=false,noiseFloor=1e-4,capPeak=0,cooldownUntil=0;
+let generation=0,session=null,analysisToken=null;
+function stopMicrophone(){
+  armed=false;arming=false;capping=false;
+  try{if(node){node.onaudioprocess=null;node.disconnect();}if(src)src.disconnect();}catch(e){}
+  if(stream)stream.getTracks().forEach(t=>t.stop());
   node=null;src=null;stream=null;
-  $("arm").textContent="Arm microphone";$("arm").className="wide primary";
+  $("arm").textContent="Start three-strike test";$("arm").className="wide primary";
   $("lvl").style.width="0%";
 }
+function invalidateTest(message="Settings changed — start a new test."){
+  generation++;stopMicrophone();analysisToken=null;session=null;reading=null;
+  $("resultCard").style.display="none";$("saveref").disabled=true;
+  $("testprogress").textContent=message;setStatus(message);
+}
+function disarm(){invalidateTest("Test cancelled — no result. Start again when ready.");render();}
+function newSession(source){
+  invalidateTest("Test started — waiting for strike 1 of 3.");stopAll();
+  session={id:generation,settings:settingsSnapshot(),spec:current(),source,strikes:[],files:new Set()};
+  $("reftrusted").checked=false;$("refnote").value="";render();
+  return session.id;
+}
+function isCurrent(id){return id===generation&&session?.id===id;}
+async function arm(){
+  if(armed||arming){disarm();return;}
+  const error=inputError();if(error){setStatus(error);return;}
+  const id=newSession(null);arming=true;$("arm").textContent="Cancel microphone request";
+  let requestedStream=null;
+  try{
+    const c=audio();await c.resume();if(!isCurrent(id))return;
+    requestedStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
+    if(!isCurrent(id)){requestedStream.getTracks().forEach(t=>t.stop());return;}
+    stream=requestedStream;
+    const track=stream.getAudioTracks()[0],s=track.getSettings?track.getSettings():{};
+    session.source={kind:"microphone",contextRate:c.sampleRate,trackRate:s.sampleRate||null,
+      device:track.label||"unreported",echoCancellation:s.echoCancellation??null,
+      noiseSuppression:s.noiseSuppression??null,autoGainControl:s.autoGainControl??null};
+    if(s.echoCancellation||s.noiseSuppression||s.autoGainControl)
+      throw new Error("Microphone processing is enabled. Disable it or use another input.");
+    track.onended=()=>{if(isCurrent(id)){invalidateTest("Microphone disconnected — start a new test.");render();}};
+    src=c.createMediaStreamSource(stream);node=c.createScriptProcessor(1024,1,1);
+    ring=new Float32Array(Math.ceil(PRE*c.sampleRate));ringW=0;ringFilled=0;noiseFloor=1e-4;
+    node.onaudioprocess=onBlock;src.connect(node);
+    const mute=c.createGain();mute.gain.value=0;node.connect(mute);mute.connect(c.destination);
+    armed=true;arming=false;cooldownUntil=Date.now()+500;
+    $("arm").textContent="Cancel test";$("arm").className="wide armed";
+    setStatus("Listening at "+c.sampleRate+" Hz (source "+(s.sampleRate||"unreported")+"). Wait, then strike 1 of 3. Sample rate does not verify microphone bandwidth.",true);
+  }catch(e){
+    if(requestedStream)requestedStream.getTracks().forEach(t=>t.stop());
+    if(!isCurrent(id))return;
+    invalidateTest("Microphone unavailable: "+e.message);render();
+  }
+}
 $("arm").onclick=arm;
-
 function onBlock(ev){
-  const x=ev.inputBuffer.getChannelData(0);
-  let sum=0;for(let i=0;i<x.length;i++)sum+=x[i]*x[i];
+  if(!armed||!session)return;
+  const x=ev.inputBuffer.getChannelData(0);let sum=0;
+  for(const v of x)sum+=v*v;
   const rms=Math.sqrt(sum/x.length);
+  const canTrigger=ringFilled===ring.length && !analysisToken && Date.now()>=cooldownUntil;
   if(capping){
-    capPeak=Math.max(capPeak,rms);
-    const n=Math.min(x.length,capBuf.length-capN);
+    capPeak=Math.max(capPeak,rms);const n=Math.min(x.length,capBuf.length-capN);
     capBuf.set(x.subarray(0,n),capN);capN+=n;
     if(capN>=capBuf.length){
-      capping=false;
-      $("lvl").style.width=Math.min(100,Math.max(0,(20*Math.log10(capPeak+1e-9)+70)*1.6))+"%";
-      analyse(capBuf,ac.sampleRate);
+      capping=false;$("lvl").style.width=Math.min(100,Math.max(0,(20*Math.log10(capPeak+1e-9)+70)*1.6))+"%";
+      analyse(capBuf,ac.sampleRate,session.id,session.source,capOnset);
     }
-    return;
-  }
-  noiseFloor = rms<noiseFloor ? noiseFloor*0.9+rms*0.1 : noiseFloor*0.999+rms*0.001;
-  if(Date.now()<cooldownUntil) return;
-  if(20*Math.log10(rms/(noiseFloor+1e-9))>(parseFloat($("thresh").value)||18) && rms>2e-4){
+  }else if(canTrigger && 20*Math.log10(rms/(noiseFloor+1e-9))>Number($("thresh").value)&&rms>2e-4){
     capBuf=new Float32Array(Math.ceil((PRE+CAP)*ac.sampleRate));
-    const pre=ring.length;
-    for(let i=0;i<pre;i++) capBuf[i]=ring[(ringW+i)%pre];
-    capBuf.set(x,pre);capN=pre+x.length;capping=true;capPeak=rms;
-    setStatus("Captured. Analysing…",true);
-    return;
+    for(let i=0;i<ring.length;i++)capBuf[i]=ring[(ringW+i)%ring.length];
+    const threshold=Math.max(2e-4,noiseFloor*Math.pow(10,Number($("thresh").value)/20));
+    const offset=x.findIndex(v=>Math.abs(v)>=threshold);
+    capOnset=ring.length+Math.max(0,offset);
+    capBuf.set(x,ring.length);capN=ring.length+x.length;capping=true;capPeak=rms;
+    setStatus("Captured strike "+(session.strikes.length+1)+" of 3. Analysing…",true);
+  }else if(!analysisToken){
+    noiseFloor=rms<noiseFloor?noiseFloor*.9+rms*.1:noiseFloor*.999+rms*.001;
   }
-  for(let i=0;i<x.length;i++){ring[ringW]=x[i];ringW=(ringW+1)%ring.length;}
+  // Pre-roll stays current during capture, processing and cooldown.
+  for(const v of x){ring[ringW]=v;ringW=(ringW+1)%ring.length;}
+  ringFilled=Math.min(ring.length,ringFilled+x.length);
 }
-
-$("upload").onclick=()=>$("file").click();
+$("upload").onclick=()=>{if(analysisToken||arming){setStatus("Wait for this capture to finish, or cancel the test.");return;}$("file").value="";$("file").click();};
 $("file").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  const c=audio(); await c.resume();
-  const buf=await c.decodeAudioData(await f.arrayBuffer());
-  const x=buf.getChannelData(0);
-  let best=0,bi=0;const W=Math.floor(0.005*buf.sampleRate);
-  for(let i=0;i+W<x.length;i+=W){let s=0;for(let k=0;k<W;k++)s+=x[i+k]*x[i+k];if(s>best){best=s;bi=i;}}
-  const st=Math.max(0,bi-Math.floor(PRE*buf.sampleRate));
-  analyse(x.slice(st,st+Math.floor((PRE+CAP)*buf.sampleRate)),buf.sampleRate);
+  const error=inputError();if(error){setStatus(error);return;}
+  if(analysisToken||arming)return;
+  if(f.size>25*1024*1024){setStatus("Use a recording smaller than 25 MB.");return;}
+  if(!session||session.source?.kind!=="file"||reading?.complete)newSession({kind:"file"});
+  stopMicrophone();const id=session.id,token={id};analysisToken=token;
+  const fingerprint=f.name+"|"+f.size+"|"+f.lastModified;
+  try{
+    if(session.files.has(fingerprint))throw new Error("Load a different strike recording; this file is already in the test.");
+    const c=audio();await c.resume();const bytes=await f.arrayBuffer();
+    if(!isCurrent(id))return;
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))).map(v=>v.toString(16).padStart(2,"0")).join("");
+    if(!isCurrent(id))return;
+    if(session.files.has(digest))throw new Error("This audio file is already in the test, even if renamed.");
+    const buf=await c.decodeAudioData(bytes);
+    if(!isCurrent(id))return;
+    if(buf.duration>30)throw new Error("Use a short recording (30 seconds maximum) with one strike and at least 60 ms of quiet before it.");
+    const source={kind:"file",contextRate:buf.sampleRate,trackRate:null,device:"decoded file; original bandwidth unknown"};
+    const x=buf.getChannelData(0),W=Math.max(1,Math.floor(.002*buf.sampleRate));
+    let max=0,bi=0;
+    for(let i=0;i+W<=x.length;i+=W){let s=0;for(let k=0;k<W;k++)s+=x[i+k]*x[i+k];if(s>max){max=s;bi=i;}}
+    // Backtrack from the strongest transient to its onset, not its peak.
+    let onset=bi;
+    while(onset>=W){let s=0;for(let k=0;k<W;k++)s+=x[onset-W+k]**2;if(s<max*.01)break;onset-=W;}
+    const pre=Math.ceil(PRE*buf.sampleRate);
+    if(onset<pre)throw new Error("Recording needs at least 60 ms of quiet before the strike. Record again with a longer lead-in.");
+    const segment=x.slice(onset-pre,onset+Math.ceil(CAP*buf.sampleRate));
+    if(analysisToken===token)analysisToken=null;
+    const accepted=await analyse(segment,buf.sampleRate,id,source,pre);
+    if(accepted&&isCurrent(id)){session.files.add(fingerprint);session.files.add(digest);}
+  }catch(e){if(isCurrent(id))rejectCapture(e.message);}
+  finally{if(analysisToken===token)analysisToken=null;}
 };
-$("again").onclick=()=>{reading=null;$("resultCard").style.display="none";render();setStatus(armed?"Armed. Strike again.":"Cleared.",armed);};
-
-/* ═════════ analysis: isolate the ring, then measure it ═════════
-   Every exit from analyseInner — rejected capture, too-short capture, or a
-   completed reading — still consumed real time and a real capture window.
-   Wrapping it here guarantees the cooldown is set exactly once regardless
-   of which return path fired, rather than needing to remember it at each
-   of the four places analyseInner can end.                               */
-async function analyse(x,sr){
-  try{
-    await analyseInner(x,sr);
-  }finally{
-    cooldownUntil=Date.now()+(parseFloat($("cooldown").value)||1500);
-  }
+$("again").onclick=()=>{invalidateTest("Cleared — start a new three-strike test.");render();};
+function rejectCapture(message){
+  const count=session?.strikes.length||0;
+  reading=null;$("resultCard").style.display="none";
+  $("testprogress").textContent="Capture rejected. "+count+" of 3 usable strikes retained. No verdict yet.";
+  setStatus(message+(armed?" Wait for the coin to stop ringing, then strike again.":" Load another strike or start a microphone test."),armed);
+  render();
 }
-async function analyseInner(x,sr){
-  setStatus("Analysing…",true);
-  const skip=Math.floor((PRE+(parseFloat($("skip").value)||8)/1000)*sr);
-  const body=x.slice(skip);
-  if(body.length<2048){setStatus("Capture too short to analyse.");return;}
-
-  const S=spectrum(body,sr,32768), nyq=sr/2;
-  const pk=peaks(S.mag,S.binHz,220,Math.min(nyq*0.92,22000),14);
-  if(!pk.length){setStatus("No tonal content found. That is itself a result — a dead thud has no peaks.");return;}
-
-  /* confidence gate: peaks() finds local maxima, and noise has plenty of
-     those — a jittery room-noise capture can "find" several small bumps
-     the same way a strike does. What noise does NOT do is produce a
-     spectrum with one or two bins towering over a near-silent rest of the
-     band. Require that shape before this capture is allowed to touch the
-     displayed reading at all — no verdict, no spectrogram change, nothing
-     on screen, for anything that doesn't clear it.                      */
-  {
-    const i0=Math.max(2,Math.floor(220/S.binHz)), i1=Math.min(S.mag.length-3,Math.ceil(Math.min(nyq*0.92,22000)/S.binHz));
-    let peakMag=0,sumMag=0,cnt=0;
-    for(let i=i0;i<=i1;i++){ if(S.mag[i]>peakMag) peakMag=S.mag[i]; sumMag+=S.mag[i]; cnt++; }
-    const crestDb=20*Math.log10((peakMag+1e-30)/((sumMag/(cnt||1))+1e-30));
-    const minCrest=parseFloat($("crest").value)||26;
-    if(crestDb<minCrest){
-      setStatus("Captured, but nothing dominant in the spectrum — not a strike, ignored."+(armed?" Still listening.":""),armed);
-      return;
-    }
-  }
-
-  /* Same idea applied per-peak, for mode-ratio matching specifically. The
-     crest gate above only asks "is there a dominant tone anywhere" — it says
-     nothing about whether any given quieter upper partial is real or is
-     just the room's own noise happening to sit at that frequency. The
-     pre-strike segment is genuine, guaranteed noise-only audio; spectrum()
-     zero-pads short input automatically, so running it at the same FFT size
-     as the body gives an ambient reference in the exact same bins, directly
-     comparable one-to-one. A candidate peak that isn't clearly above what
-     the room was already producing at its own frequency gets dropped before
-     it can ever be miscounted as "no partials matched" versus counted as a
-     false one — this is what "none found" so often was: real quiet partials
-     buried in a same-size ambient bump, not absent partials.               */
-  {
-    const preRoll=x.slice(0,Math.floor(PRE*sr));
-    const Sn=spectrum(preRoll,sr,32768);
-    /* FFT magnitude for a steady tone scales linearly with how many real
-       samples went into the window — confirmed numerically, not assumed.
-       The pre-strike segment is PRE seconds, the body is much longer, so a
-       truly constant hum reads far "quieter" in the short pre-roll purely
-       from that length difference, not because it actually got louder.
-       Scale the ambient reference up to the body's window length first, or
-       every persistent background tone slips straight through unfiltered.*/
-    const Lpre=Math.min(preRoll.length,32768), Lbody=Math.min(body.length,32768);
-    const scale=Lbody/Math.max(1,Lpre);
-    const cleaned=pk.filter(q=>{
-      const bin=Math.round(q.f/S.binHz);
-      let noiseMag=0;
-      for(let d=-1;d<=1;d++) noiseMag=Math.max(noiseMag,Sn.mag[bin+d]||0);
-      return 20*Math.log10((q.mag+1e-30)/(noiseMag*scale+1e-30)) >= 10;
-    });
-    if(cleaned.length) pk.length=0, pk.push(...cleaned);
-  }
-
-  const c=current(), p=P(c);
-  let f0=null,best=-1,offwindow=false;
-  for(const q of pk) if(q.f>=p.f[0]*0.55&&q.f<=p.f[0]*1.75&&q.mag>best){best=q.mag;f0=q.f;}
-  if(f0===null){ f0=pk.reduce((a,b)=>b.mag>a.mag?b:a).f; offwindow=true; }
-
-  /* isolate: render the capture through a narrow bandpass at f0 and measure
-     that partial's own decay, free of the strike and of the room.
-     "Free of the room" needs the room's own level in this same band, not an
-     assumption — a fixed dB-below-peak cutoff has no way to know whether the
-     venue is a quiet kitchen table or a coin show floor. The PRE seconds
-     already captured before the strike are genuine, guaranteed noise-only
-     audio; filter that through the identical bandpass and its level becomes
-     the real floor the decay fit should stop at, rather than blindly
-     following the envelope down into noise and fitting a slope to it.      */
-  let q=NaN,tau=NaN;
+async function analyse(x,sr,id=session?.id,source=session?.source,onset=Math.ceil(PRE*sr)){
+  if(!isCurrent(id)||analysisToken||session.strikes.length>=RULES.strikes)return false;
+  const token={id};analysisToken=token;
   try{
-    const bandpassRender=async(seg)=>{
+    const result=await analyseInner(x,sr,session.spec,session.settings,source,onset);
+    if(!isCurrent(id))return false;
+    session.source=source;session.strikes.push(result);reading=summarizeStrikes(session.strikes);
+    $("resultCard").style.display="";
+    $("testprogress").textContent=session.strikes.length+" of 3 usable strikes recorded.";
+    if(reading.complete){stopMicrophone();setStatus("Test complete — result frozen. Start a new test for another coin.");}
+    else setStatus((armed?"Wait for the ring to stop, then strike ":"Load a separate recording for strike ")+(session.strikes.length+1)+" of 3.",armed);
+    render();return true;
+  }catch(e){if(isCurrent(id))rejectCapture(e.message);return false;}
+  finally{if(analysisToken===token)analysisToken=null;if(isCurrent(id))cooldownUntil=Date.now()+Number($("cooldown").value);}
+}
+async function analyseInner(x,sr,c,settings,source,onset){
+  if(!Number.isFinite(sr)||sr<8000)throw new Error("Unsupported audio sample rate.");
+  let clipped=0;for(const v of x){if(!Number.isFinite(v))throw new Error("Recording contains invalid samples.");if(Math.abs(v)>=.995)clipped++;}
+  if(clipped>=3)throw new Error("Clipping detected. Strike more gently or move the microphone farther away.");
+  const skip=onset+Math.floor(settings.skipMs*sr/1000),body=x.slice(skip);
+  if(onset<Math.floor(PRE*sr)||body.length<Math.max(2048,.45*sr))throw new Error("Capture too short: keep 60 ms before and at least half a second after the strike.");
+  const usableHz=Math.min(22000,.45*sr,source?.trackRate ? .45*source.trackRate : Infinity);
+  if(P(c).f[0]>=usableHz)throw new Error("Predicted fundamental is outside the input's conservative frequency limit. Use another microphone or recording.");
+  const S=spectrum(body,sr,32768),preRoll=x.slice(0,onset),Sn=spectrum(preRoll,sr,32768);
+  let pk=peaks(S.mag,S.binHz,220,usableHz,14);
+  if(!pk.length)throw new Error("No usable tonal peaks. No acoustic result for this capture.");
+  const i0=Math.max(2,Math.floor(220/S.binHz)),i1=Math.min(S.mag.length-3,Math.ceil(usableHz/S.binHz));
+  let peak=0,sum=0;for(let i=i0;i<=i1;i++){peak=Math.max(peak,S.mag[i]);sum+=S.mag[i];}
+  const crestDb=20*Math.log10((peak+1e-30)/(sum/Math.max(1,i1-i0+1)+1e-30));
+  if(crestDb<settings.crestDb)throw new Error("Insufficient tonal prominence above the background.");
+  pk=rejectAmbient(pk,S,Sn,Math.min(body.length,32768),Math.min(preRoll.length,32768));
+  if(!pk.length)throw new Error("Every peak failed the pre-strike noise check. No result.");
+  const selected=selectFundamental(pk,P(c).f[0],c.nu,usableHz),f0=selected.f0;
+  let q=NaN,tau=NaN,decayFit={valid:false,reason:"Decay could not be measured"};
+  try{
+    const bandpassRender=async seg=>{
       const oc=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,seg.length,sr);
       const b=oc.createBuffer(1,seg.length,sr);b.copyToChannel(seg,0);
       const s=oc.createBufferSource();s.buffer=b;
       const bp=oc.createBiquadFilter();bp.type="bandpass";bp.frequency.value=f0;bp.Q.value=18;
-      s.connect(bp);bp.connect(oc.destination);s.start();
-      return (await oc.startRendering()).getChannelData(0);
+      s.connect(bp);bp.connect(oc.destination);s.start();return(await oc.startRendering()).getChannelData(0);
     };
-    const preRoll=x.slice(0,Math.floor(PRE*sr));
-    const noiseFiltered=await bandpassRender(preRoll);
-    let ns=0;for(let i=0;i<noiseFiltered.length;i++)ns+=noiseFiltered[i]*noiseFiltered[i];
-    const noiseRms=Math.sqrt(ns/Math.max(1,noiseFiltered.length));
-
-    const bodyFiltered=await bandpassRender(body);
-    tau=decay(bodyFiltered,sr,noiseRms).tau; q=Math.PI*f0*tau;
+    const noise=await bandpassRender(preRoll);let ns=0;for(const v of noise)ns+=v*v;
+    decayFit=decay(await bandpassRender(body),sr,Math.sqrt(ns/noise.length));
+    if(decayFit.valid){tau=decayFit.tau;q=Math.PI*f0*tau;}
   }catch(e){}
-
-  reading={sr,f0,peaks:pk,q,tau,mag:S.mag,binHz:S.binHz,nyq,offwindow};
-  $("resultCard").style.display="";
-  render();
-  setStatus(offwindow
-    ? "Nothing landed in the predicted window. Using the loudest peak — check the coin selection and the mass."
-    : (armed?"Armed. Strike again to re-measure.":"Reading complete."), armed);
+  return {sr,f0,peaks:pk,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
+    offwindow:selected.offwindow,matches:selected.matches,crestDb,settings:{...settings},source:{...source},when:new Date().toISOString()};
 }
-
 function decay(y,sr,noiseRms){
-  const hop=Math.floor(sr*0.004), n=Math.floor(y.length/hop), env=[];
-  for(let i=0;i<n;i++){let s=0;for(let k=0;k<hop;k++){const v=y[i*hop+k];s+=v*v;}env.push(Math.sqrt(s/hop));}
-  let pi=0;for(let i=0;i<env.length;i++)if(env[i]>env[pi])pi=i;
-  const top=env[pi],pts=[];
-  /* stop at a fixed -25dB below peak as a floor-blind safety net, or 6dB above
-     the room's own measured level in this band, whichever is reached first —
-     past that point the envelope is measuring the room, not the coin, and
-     fitting a slope through it only manufactures a false, too-long tau.     */
-  const noiseCutDb = (noiseRms>0 && top>0) ? 20*Math.log10(noiseRms/top)+6 : -Infinity;
-  const cutDb = Math.max(-25, noiseCutDb);
-  for(let i=pi;i<env.length;i++){
-    const db=20*Math.log10((env[i]+1e-12)/top);
-    if(db<cutDb)break;
+  const hop=Math.max(1,Math.floor(sr*.004)),env=[];
+  for(let i=0;i+hop<=y.length;i+=hop){let s=0;for(let k=0;k<hop;k++)s+=y[i+k]**2;env.push(Math.sqrt(s/hop));}
+  if(!env.length)return {valid:false,reason:"Too short"};
+  let pi=0;for(let i=1;i<env.length;i++)if(env[i]>env[pi])pi=i;
+  const top=env[pi],cut=Math.max(-25,20*Math.log10((noiseRms+1e-30)/(top+1e-30))+6),pts=[];
+  for(let i=pi+2;i<env.length;i++){
+    const db=20*Math.log10((env[i]+1e-30)/(top+1e-30));if(db<cut)break;
     pts.push([(i-pi)*hop/sr,db]);
   }
-  if(pts.length<5) return {tau:NaN};
-  let sx=0,sy=0,sxy=0,sxx=0;
-  for(const a of pts){sx+=a[0];sy+=a[1];sxy+=a[0]*a[1];sxx+=a[0]*a[0];}
-  const m=(pts.length*sxy-sx*sy)/(pts.length*sxx-sx*sx||1e-9);
-  return {tau: m<0 ? 8.6859/(-m) : NaN};
+  if(pts.length<8)return {valid:false,reason:"Too little decay above noise"};
+  const mx=pts.reduce((s,p)=>s+p[0],0)/pts.length,my=pts.reduce((s,p)=>s+p[1],0)/pts.length;
+  let xx=0,xy=0,yy=0;for(const [x,y]of pts){xx+=(x-mx)**2;xy+=(x-mx)*(y-my);yy+=(y-my)**2;}
+  const slope=xy/xx,r2=yy>0?xy*xy/(xx*yy):0,span=pts[0][1]-pts.at(-1)[1];
+  const valid=Number.isFinite(slope)&&slope<0&&r2>=RULES.minDecayR2&&span>=RULES.minDecaySpanDb;
+  return {valid,tau:valid?-8.685889638/slope:NaN,r2,spanDb:span,reason:valid?"":"Decay is too short, irregular or noise-limited"};
 }
-
-/* ═════════════════════ scoring ═════════════════════ */
 function score(){
-  const c=current(), p=P(c), r=reading, ref=refs[refKey()];
-  const rows=[],prow=[];
-  let pts=0,max=0;
-
-  max+=30;
-  let qpts=0,qtxt="not measurable";
-  if(isFinite(r.q)){
-    const Q=r.q, ql=parseFloat($("qlo").value)||80, qh=parseFloat($("qhi").value)||450;
-    qpts = Q<=ql?0 : Q>=qh?30 : 30*(Q-ql)/Math.max(1,qh-ql);
-    qtxt = Math.round(Q)+" · τ "+(r.tau*1000).toFixed(0)+" ms";
-  }
-  pts+=qpts;
-  rows.push(["Ring quality Q",qtxt,qpts,qpts>20?"ok":qpts<8?"no":""]);
-
-  max+=40;
-  let matched=0,resid=0,closest=null;
-  const RATIOS=ratiosAt(c.nu);   /* at THIS alloy's ν — for gold the (0,1),
-    (1,1) and (2,1) ratios sit 6-8% away from the old fixed-ν values, which
-    is exactly the margin a real partial needed to miss the 10% window     */
-  for(const q of r.peaks){
-    if(Math.abs(q.f-r.f0)/r.f0<0.02) continue;
-    const rat=q.f/r.f0;
-    if(rat<1.3||rat>7.2) continue;
-    let bestE=1e9,bestI=-1;
-    RATIOS.forEach((t,i)=>{if(i===0)return;const e=Math.abs(rat-t)/t;if(e<bestE){bestE=e;bestI=i;}});
-    if(bestI<0) continue;
-    prow.push([q.f,rat,MODES[bestI].id,bestE]);
-    if(!closest||bestE<closest.e) closest={rat,id:MODES[bestI].id,e:bestE};
-    if(bestE<0.10){matched++;resid+=Math.min(bestE,0.10);}
-  }
-  let rpts=0,rtxt="none found";
-  if(matched>0){
-    const mean=resid/matched;
-    const acc = mean<=0.02?1 : mean>=0.10?0 : (0.10-mean)/0.08;
-    const cover = matched>=3?1 : matched===2?0.85 : 0.55;
-    rpts=40*acc*cover;
-    rtxt=matched+" partial"+(matched>1?"s":"")+", mean "+(mean*100).toFixed(1)+"%";
-  }else if(closest){
-    rtxt="closest "+closest.rat.toFixed(2)+"→"+closest.id+" at "+(closest.e*100).toFixed(1)+"% — outside tolerance";
-  }
-  pts+=rpts;
-  rows.push(["Mode ratios",rtxt,rpts,rpts>26?"ok":rpts<12?"no":""]);
-
-  max+=30;
-  let dev,band,basis;
-  if(ref){ dev=(r.f0-ref.f0)/ref.f0; band=0.015; basis="reference"; }
-  else   { dev=(r.f0-p.f[0])/p.f[0]; band=0.08;  basis="theory"; }
-  const wr=Math.max(0,(parseFloat($("wear").value)||0)/100);
-  const ad = dev<0 ? Math.max(0,-dev-wr) : dev;    /* wear can only ever flatten */
-  const apts = ad<=band?30 : ad>=band*2?0 : 30*(band*2-ad)/band;
-  const gateOK = ad<=band;   /* the one check that says "is this even the right
-    metal and size" — mode ratios and Q only say "this rings like some coherent
-    solid," so neither should be able to buy back a verdict of Consistent once
-    the pitch itself has already missed its own stated tolerance             */
-  pts+=apts;
-  rows.push(["Fundamental placement",(dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+
-    (wr&&dev<0?" (−"+(wr*100).toFixed(1)+"% wear allowed)":""),apts,apts>22?"ok":apts<9?"no":""]);
-
-  let total=100*pts/max, capped=false;
-  if(!ref && total>80){ total=80; capped=true; }
-
-  /* the panel's measured line */
-  $("mdot").className="dot "+((total>=78&&gateOK)?"ok":total>=52?"mid":"no");
-  $("measline").innerHTML="MEAS <b style='color:var(--lcd)'>"+sp(+r.f0.toFixed(1))+" Hz</b> · "+
-    (dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+" · score "+Math.round(total);
-
-  $("peaks").innerHTML = prow.length
-    ? prow.map(a=>"<tr><td>"+a[0].toFixed(1)+"</td><td class='num'>"+a[1].toFixed(3)+
-        "</td><td class='num'>"+a[2]+"</td><td class='num' style='color:"+(a[3]<0.05?"var(--good)":a[3]<0.10?"var(--warn)":"var(--bad)")+
-        "'>"+(a[3]*100).toFixed(1)+"%</td></tr>").join("")
-    : "<tr><td colspan='4' style='color:var(--dim)'>No partials above the fundamental. On a small coin the higher modes often sit above the microphone's usable range — not by itself a fault.</td></tr>";
-
-  $("score").innerHTML=rows.map(a=>
-    "<tr><td>"+a[0]+"</td><td class='num'>"+a[1]+"</td><td class='num'><span class='tag "+a[3]+"'>"+
-    a[2].toFixed(0)+"</span></td></tr>").join("")+
-    "<tr><td><b>Consistency</b></td><td class='num'></td><td class='num'><b style='font-size:17px;color:var(--goldhi)'>"+
-    Math.round(total)+"</b></td></tr>";
-
-  /* Solve the other way: hold the geometry you measured, ask which metals could
-     produce this pitch, restricted to the family you've already declared. This
-     used to scan every alloy in the table, gold included, on the theory that a
-     cross-metal match could catch a coin struck in an unexpected metal entirely
-     — but gold and silver differ in density by nearly 2x, so that specific
-     confusion is already caught by a scale before the ring matters, and a base-
-     metal comparison against a precious-metal coin was never a meaningful
-     question either. Locking to the declared family is what "consistent with
-     this pitch" should have meant from the start.                             */
-  const tol=band+ (dev<0?wr:0) + 0.02;
-  const fit=Object.keys(ALLOYS).filter(k=>{
-    if(ALLOYS[k].mt!==ALLOYS[c.key].mt) return false;
-    const q=predict(0,c.dia,rhoOf(k),ALLOYS[k].E,ALLOYS[k].nu,c.qmat,c.sup,p.h);
-    return Math.abs(r.f0-q.f[0])/q.f[0] <= tol;
-  });
-  $("fitline").innerHTML = "<b>Consistent with this pitch at your measured geometry, within "+ALLOYS[c.key].mt+":</b> "+
-    (fit.length ? fit.map(k=>ALLOYS[k].n.split(" — ")[0]).join(" · ") : "nothing in "+ALLOYS[c.key].mt)+
-    "<br><span style='opacity:.75'>Listed because they match, not because the coin is one of them. "+
-    (fit.length>1?"More than one metal fits, so this reading cannot name a material — only narrow the field."
-                 :"Even a single match is one number, √(E/ρ); treat it as a direction, not an identification.")+"</span>";
-
-  const vt = (total>=78 && gateOK) ? ["v-good","Consistent with solid "+ALLOYS[c.key].n.split(" — ")[0]+" at this geometry",
-      "No acoustic anomaly. This says nothing about the dies, the strike, or whether the piece was struck in the year it claims."]
-    : total>=52 ? ["v-warn","Inconclusive",
-      !gateOK ? "The pitch itself missed its own tolerance — mode ratios and Q can say this rings like some coherent solid, but neither can vouch for it being the right one. Re-strike, and check the geometry before drawing anything from it."
-              : "Something is short of the model — most often support damping, a marginal capture, or a modulus assumption that does not fit this alloy. Re-strike before drawing anything from it."]
-    : ["v-bad","Anomalous — investigate",
-      "The metal is not behaving like a solid homogeneous disc of the declared alloy. Weigh it and measure it before going further."];
-  $("verdict").innerHTML="<div class='verdict "+vt[0]+"'><p class='vtitle'>"+vt[1]+"</p><p class='vsub'>"+vt[2]+
-    (capped?" Capped at 80 because pitch is judged against theory rather than a coin you trust.":"")+"</p></div>";
+  const c=current(),r=reading;if(!r)return;
+  const e=evaluateReading(r,c,refs[refKey()]);
+  const title=!r.complete?"Collecting three strikes":e.state==="consistent"?"Acoustically consistent with the selected model":e.state==="mismatch"?"Acoustic mismatch":"Inconclusive";
+  const style=e.state==="consistent"?"v-good":e.state==="mismatch"?"v-bad":"v-warn";
+  const detail=!r.complete?"No verdict until three usable strikes are recorded.":!e.repeatable?"The strikes disagree by more than the provisional 1% spread limit. Reposition the coin and repeat the test.":!e.sufficient?"Fewer than two distinct upper modes recur within 1% spread across all three strikes, or the fundamental is uncertain. Limited bandwidth or support can hide modes.":e.pitchOK?"Pitch and recurring modes agree within provisional tolerances. This does not identify fineness, prove a homogeneous interior, or authenticate the coin.":"The repeated pitch is outside the provisional tolerance. Check dimensions, support and the reference before interpreting the mismatch.";
+  $("verdict").innerHTML="<div class='verdict "+style+"'><p class='vtitle'>"+title+"</p><p class='vsub'>"+detail+"</p></div>";
+  $("mdot").className="dot "+(r.complete&&e.state==="consistent"?"ok":r.complete&&e.state==="mismatch"?"no":"mid");
+  $("measline").textContent=(r.complete?"MEDIAN ":"STRIKE ")+r.f0.toFixed(1)+" Hz · "+(r.complete?title:r.strikes.length+" of 3; no verdict");
+  const quality=r.strikes.every(s=>s.decayFit.valid)?"Decay fits usable; Q is descriptive only":"One or more Q estimates excluded: poor or insufficient decay";
+  const measured=r.settings.diameterMeasured&&(r.settings.thicknessSource==="mass"?r.settings.massMeasured:r.settings.thicknessMeasured);
+  const rows=[
+    ["Repeatability",r.strikes.map(s=>s.f0.toFixed(1)).join(" / ")+" Hz; spread "+(r.spread*100).toFixed(2)+"%"],
+    ["Pitch placement",(e.dev>=0?"+":"")+(e.dev*100).toFixed(2)+"% vs "+(e.reference.usable?"reference":"theory")+"; tolerance −"+((e.band+e.wear)*100).toFixed(1)+" / +"+(e.band*100).toFixed(1)+"%"],
+    ["Distinct recurring modes",r.commonModes.length+" upper modes across "+r.strikes.length+" strikes; 2 required"],
+    ["Capture quality","Accepted tonal / noise / clipping checks. "+quality],
+    ["Bandwidth","Analysis limit "+Math.round(r.usableHz)+" Hz; actual source bandwidth unverified"],
+    ["Geometry",measured?"User-confirmed measurements; catalogue differences shown in Specs":"Catalogue or unconfirmed dimensions — not independent measurements"],
+    ["Q (diagnostic)",r.strikes.map(s=>Number.isFinite(s.q)?Math.round(s.q)+" (R² "+s.decayFit.r2.toFixed(2)+")":"excluded").join(" / ")]
+  ];
+  $("score").replaceChildren();
+  rows.forEach(([a,b])=>{const tr=document.createElement("tr");for(const t of [a,b]){const td=document.createElement("td");td.textContent=t;tr.appendChild(td);}$("score").appendChild(tr);});
+  $("peaks").innerHTML=r.matches.map(m=>"<tr><td>"+m.f.toFixed(1)+"</td><td>"+m.ratio.toFixed(3)+"</td><td>"+MODES[m.mode].id+"</td><td>"+(100*m.error).toFixed(2)+"%</td></tr>").join("")||"<tr><td colspan='4'>No distinct upper modes matched.</td></tr>";
+  const fit=Object.keys(ALLOYS).filter(k=>Math.abs(r.f0/candidatePrediction(c,k).f[0]-1)<=RULES.theoryPitch);
+  $("fitline").textContent="Other pitch hypotheses at the same "+(c.hmm>0?"caliper thickness and diameter":"mass and diameter")+": "+(fit.length?fit.map(k=>ALLOYS[k].n.split(" — ")[0]).join(" · "):"none in the built-in table")+". Provisional ±8% pitch comparison across all families, not material identification. This table does not model layered or plated coins.";
+  $("saveref").disabled=!r.complete||!e.repeatable||!measured||!$("reftrusted").checked;
 }
-
-$("saveref").onclick=()=>{
-  if(!reading)return;
-  refs[refKey()]={f0:reading.f0,q:reading.q,when:new Date().toISOString().slice(0,10)};
-  saveRefs();render();
+$("reftrusted").onchange=()=>{if(reading)score();};
+$("saveref").onclick=async()=>{
+  if(!reading?.complete||reading.spread>RULES.repeatability||!$("reftrusted").checked)return;
+  const s=reading.settings;
+  if(!s.diameterMeasured||!(s.thicknessSource==="mass"?s.massMeasured:s.thicknessMeasured)){setStatus("Confirm the dimensions were measured before saving a reference.");return;}
+  const note=$("refnote").value.trim();if(!note){setStatus("Add a short note explaining why you trust this reference specimen.");return;}
+  const r=reading;
+  refs[refKey()]={version:RULES.version,model:MODEL,build:BUILD,trusted:true,note:note.slice(0,240),f0:r.f0,
+    when:new Date().toISOString(),settings:r.settings,source:r.source,repeatability:{spread:r.spread,count:r.strikes.length},
+    strikes:r.strikes.map(s=>({f0:s.f0,q:Number.isFinite(s.q)?s.q:null,tau:Number.isFinite(s.tau)?s.tau:null,
+      peaks:s.peaks.map(p=>({f:p.f,snrDb:p.snrDb})),matches:s.matches,decayFit:s.decayFit,when:s.when}))};
+  const saved=await saveRefs();render();setStatus(saved?"Three-strike reference saved on this device.":"Reference is only in memory: storage failed. Do not close the app before exporting the test.");
 };
-$("clearref").onclick=()=>{delete refs[refKey()];saveRefs();render();};
+$("clearref").onclick=async()=>{delete refs[refKey()];await saveRefs();render();};
+$("exporttest").onclick=()=>{
+  if(!reading)return;
+  const r=reading;
+  const data={build:BUILD,model:MODEL,rules:RULES,settings:r.settings,source:r.source,complete:r.complete,
+    medianHz:r.f0,spread:r.spread,evaluation:evaluateReading(r,current(),refs[refKey()]),
+    strikes:r.strikes.map(s=>({...s,mag:Array.from(s.mag)}))};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+  const a=document.createElement("a");a.href=url;a.download="ring-bench-test-"+new Date().toISOString().replace(/[:.]/g,"-")+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
 
-/* ═════════════════════ the comb ═════════════════════ */
+/* ───────── spectrum display ───────── */
 function drawSpec(){
-  const cv=$("spec"); if(!cv.clientWidth) return;
+  const cv=$("spec"); if(!cv.clientWidth||inputError()) return;
   const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight||190;
   cv.width=W*dpr;cv.height=H*dpr;
   const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
@@ -1575,7 +1618,7 @@ function setStatus(t,live){$("status").textContent=t;$("status").className="stat
 
 /* offline + self-update. The worker answers from cache instantly and checks the
    network behind your back; if the deployed files changed, it says so.        */
-const BUILD="2026-08-28.fb292d";
+
 (function(){
   const f=document.querySelector(".foot");
   if(f) f.textContent="build "+BUILD+" · "+f.textContent;
@@ -1590,7 +1633,7 @@ if("serviceWorker" in navigator){
       else navigator.serviceWorker.addEventListener("controllerchange",mark);
     }).catch(()=>{});
     navigator.serviceWorker.addEventListener("message",e=>{
-      if(e.data&&e.data.type==="update"){
+      if(e.data&&(e.data.type==="update"||(e.data.type==="ready"&&e.data.version!==BUILD))){
         const u=$("upd");
         u.style.display="";
         u.textContent="A newer build is deployed — tap to load it";

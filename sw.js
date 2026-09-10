@@ -1,65 +1,55 @@
-/* Ring Bench — offline cache with self-updating.
- *
- * Strategy: stale-while-revalidate. Every request is answered instantly from
- * cache (so the app opens with no signal), while the network copy is fetched in
- * the background and written back. If the new copy differs from the cached one,
- * the page is told, and it offers a reload.
- *
- * The point of this over plain cache-first: you never have to bump a version
- * string by hand. Push to GitHub, open the app twice, you are on the new build.
- */
-const CACHE = "ringbench";
-const FILES = ["./", "./index.html", "./manifest.json", "./icon.svg"];
-
-self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
-});
-
-self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
-});
-
-function announceUpdate() {
-  self.clients.matchAll({ type: "window" })
-    .then(cs => cs.forEach(c => c.postMessage({ type: "update" })));
+/* Ring Bench: scoped, versioned offline cache. Bump VERSION with each release. */
+const VERSION="2026-09-10.reliability-1";
+const ROOT=new URL(self.registration.scope);
+const PREFIX="ringbench:"+encodeURIComponent(ROOT.pathname)+":";
+const CACHE=PREFIX+VERSION;
+const FILES=["index.html","ring-bench.html","manifest.json","icon.svg"];
+const ALLOWED=new Set(FILES.map(name=>new URL(name,ROOT).href));
+function canonical(request){
+  const url=new URL(request.url);
+  if(url.origin!==ROOT.origin)return null;
+  url.search="";url.hash="";
+  if(url.href===ROOT.href)url.pathname+="index.html";
+  return ALLOWED.has(url.href)?url.href:null;
 }
-
-self.addEventListener("fetch", e => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  let url;
-  try { url = new URL(req.url); } catch (err) { return; }
-  if (url.origin !== location.origin) return;
-
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreSearch: true });
-    /* start reading the cached copy now, before the response body is handed
-       to the page and consumed */
-    const cachedText = cached ? cached.clone().text() : null;
-
-    const network = fetch(new Request(url.href, { cache: "no-store" }))
-      .then(async res => {
-        if (!res || !res.ok || res.type !== "basic") return res;
-        const forCache = res.clone();
-        const forCompare = res.clone();
-        let changed = false;
-        if (cachedText) {
-          try {
-            const [oldT, newT] = await Promise.all([cachedText, forCompare.text()]);
-            changed = oldT !== newT;
-          } catch (err) { /* binary or unreadable — treat as unchanged */ }
-        }
-        await cache.put(req, forCache);
-        if (changed) announceUpdate();
-        return res;
-      })
-      .catch(() => cached);          /* offline: the cache is the answer */
-
-    return cached || network;
+self.addEventListener("install",event=>{
+  event.waitUntil((async()=>{
+    const cache=await caches.open(CACHE);
+    await cache.addAll(FILES.map(name=>new Request(new URL(name,ROOT).href,{cache:"reload"})));
+    await self.skipWaiting();
+  })());
+});
+self.addEventListener("activate",event=>{
+  event.waitUntil((async()=>{
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(k=>k.startsWith(PREFIX)&&k!==CACHE).map(k=>caches.delete(k)));
+    await self.clients.claim();
+    const clients=await self.clients.matchAll({type:"window"});
+    for(const client of clients)client.postMessage({type:"ready",version:VERSION});
+  })());
+});
+async function refresh(key){
+  const response=await fetch(new Request(key,{cache:"no-store"}));
+  if(!response.ok||response.type!=="basic")throw new Error("Update unavailable");
+  const cache=await caches.open(CACHE),old=await cache.match(key);
+  const changed=old && (await old.text())!==(await response.clone().text());
+  await cache.put(key,response.clone());
+  if(changed){
+    const clients=await self.clients.matchAll({type:"window"});
+    for(const client of clients)client.postMessage({type:"update"});
+  }
+  return response;
+}
+self.addEventListener("fetch",event=>{
+  if(event.request.method!=="GET")return;
+  const key=canonical(event.request);if(!key)return;
+  // Register lifetime extension synchronously, even when the cached response wins.
+  const network=refresh(key);
+  event.waitUntil(network.then(()=>{},()=>{}));
+  event.respondWith((async()=>{
+    const cache=await caches.open(CACHE),cached=await cache.match(key);
+    if(cached)return cached;
+    try{return await network;}
+    catch(e){return new Response("Ring Bench is not cached yet. Connect once, then reopen.",{status:503,headers:{"Content-Type":"text/plain"}});}
   })());
 });
