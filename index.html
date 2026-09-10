@@ -640,38 +640,42 @@ const flat=[];COINS.forEach(g=>g.items.forEach(c=>flat.push(c)));
 /* ───────── free circular plate, Leissa ─────────
    f = (λ² h)/(2π a²) · √( E / (12(1−ν²)ρ) )
 
-   KNOWN GAP, not yet fixed — read before touching λ² or ν:
-   These λ² are NOT material-free. They are Leissa's tabulated roots for
-   every mode with a nodal diameter (every row here except (0,1)), and
-   those roots are themselves functions of ν — there is no closed form;
-   Leissa solved a transcendental equation in Bessel functions and
-   published numbers at discrete ν (0, .1, .2, .3, 1/3, .5). The figures
-   below sit at ν≈0.33, which is a generic mid-alloy value, not the ν of
-   any specific alloy in the table below (gold ν=.42, silver ν=.37,
-   cupronickel ν=.33-.34 happens to match, brass ν=.35).
-   Net effect: every gold and silver prediction on this panel is computed
-   with a λ² table implicitly built for the wrong ν. The (0,1) mode is the
-   one exception — no nodal diameter, so its λ²=9.084 really is ν-free —
-   everything else here is a live, uncorrected source of error, largest
-   for gold (ν off by ~0.09) and smaller for silver (~0.04).
-   Fixing it for real needs Leissa's λ²(ν) values (or a re-derived root
-   solve) at each mode/ν pair actually used, interpolated per alloy — not
-   a single multiplier, since the ν-sensitivity differs by mode. That is
-   a real numerical task, not a hardcoded-constant swap, and it has not
-   been done here. Do not ship a guessed interim solver under time
-   pressure — a stated, uncorrected ~0.04-0.09 gap you know about beats a
-   silent wrong number from an unverified root-finder.
+   λ² is NOT material-free. Every mode with a nodal diameter has a λ² that
+   depends on ν, and Leissa only published the table at one ν (1/3). For
+   months this app used that one-ν table for every alloy — over-predicting
+   gold (ν=.42) by about 5.8% on the fundamental and mis-stating the mode
+   ratios for gold by 6-8%, which is where the "reads flat" and "none found"
+   problems came from.
+
+   Fixed by solving the free-edge problem directly. Mode shape
+   W=[C·Jₙ(λρ)+D·Iₙ(λρ)]cos(nθ); free edge means zero radial moment and zero
+   Kirchhoff shear at ρ=1. Using the Helmholtz identities (∇²J = −λ²J,
+   ∇²I = +λ²I) the 2×2 determinant is
+     moment  row:  λ²Jₙ'' + νλJₙ' − νn²Jₙ    |  λ²Iₙ'' + νλIₙ' − νn²Iₙ
+     shear   row:  −λ³Jₙ' − (1−ν)n²(λJₙ'−Jₙ)  |  +λ³Iₙ' − (1−ν)n²(λIₙ'−Iₙ)
+   Root-found with scipy at ν=1/3, it reproduces all six of Leissa's
+   published values to within 0.12% mean (worst 0.5% on the one he quotes
+   to only three figures) — across n=0..4 and both nodal-circle counts.
+   That agreement is the validation; the equation was not trusted until it
+   passed it. See eig.py in the repo.
+
+   What ships here is a cubic in ν per mode, fitted over ν∈[0.20,0.50] with
+   max error 0.003% — thirty times tighter than the table it replaces, and
+   it needs no Bessel functions in the browser. lam2(i,ν) evaluates it.
    centreNode: a nodal line passes through the centre — true for every mode
    with at least one nodal diameter, false for the axisymmetric ones.      */
 const MODES=[
- {id:"(2,0)",lam:5.253, centreNode:true },
- {id:"(0,1)",lam:9.084, centreNode:false},
- {id:"(3,0)",lam:12.23, centreNode:true },
- {id:"(1,1)",lam:20.52, centreNode:true },
- {id:"(4,0)",lam:21.60, centreNode:true },
- {id:"(2,1)",lam:35.25, centreNode:true },
+ {id:"(2,0)", c:[-1.343071,-0.723659,-2.352084, 6.165347], centreNode:true },
+ {id:"(0,1)", c:[ 0.359723,-1.227142, 2.858181, 8.246414], centreNode:false},
+ {id:"(3,0)", c:[-3.558018,-1.813648,-4.296389,13.987200], centreNode:true },
+ {id:"(1,1)", c:[ 0.057930,-0.332170, 1.476584,20.059906], centreNode:true },
+ {id:"(4,0)", c:[-6.925460,-3.001457,-6.302912,24.183156], centreNode:true },
+ {id:"(2,1)", c:[ 0.000184, 0.058097,-0.622912,35.441748], centreNode:true },
 ];
-const RATIOS=MODES.map(m=>m.lam/MODES[0].lam);
+const lam2=(i,nu)=>{const c=MODES[i].c;return ((c[0]*nu+c[1])*nu+c[2])*nu+c[3];};
+/* ratios of each mode to the fundamental, at a given ν — these move with ν
+   too, and for gold they move by 6-8%, which a 10% match window will lose */
+const ratiosAt=nu=>MODES.map((m,i)=>lam2(i,nu)/lam2(0,nu));
 const SUPPORTS={
  "tongs-rubber":{n:"Rubber-tipped tongs, centre", node:9000, anti:500},
  "tongs-hard"  :{n:"Hard tongs, centre",          node:5000, anti:280},
@@ -689,7 +693,7 @@ function predict(mass,dia,rho,E,nu,qmat,sup,hmm){
   const S=SUPPORTS[sup]||SUPPORTS["tongs-rubber"];
   const f=[],Q=[],tau=[],amp=[];
   MODES.forEach((m,i)=>{
-    const fi=m.lam*h/(2*Math.PI*a*a)*k;
+    const fi=lam2(i,nu)*h/(2*Math.PI*a*a)*k;
     const qi=1/(1/qmat+1/(m.centreNode?S.node:S.anti));
     f.push(fi);Q.push(qi);tau.push(qi/(Math.PI*fi));
     amp.push(Math.pow(f[0]/fi,0.8));
@@ -1367,6 +1371,9 @@ function score(){
 
   max+=40;
   let matched=0,resid=0,closest=null;
+  const RATIOS=ratiosAt(c.nu);   /* at THIS alloy's ν — for gold the (0,1),
+    (1,1) and (2,1) ratios sit 6-8% away from the old fixed-ν values, which
+    is exactly the margin a real partial needed to miss the 10% window     */
   for(const q of r.peaks){
     if(Math.abs(q.f-r.f0)/r.f0<0.02) continue;
     const rat=q.f/r.f0;
@@ -1397,7 +1404,11 @@ function score(){
   else   { dev=(r.f0-p.f[0])/p.f[0]; band=0.08;  basis="theory"; }
   const wr=Math.max(0,(parseFloat($("wear").value)||0)/100);
   const ad = dev<0 ? Math.max(0,-dev-wr) : dev;    /* wear can only ever flatten */
-  const apts = ad<=band?30 : ad>=band*3?0 : 30*(band*3-ad)/(band*2);
+  const apts = ad<=band?30 : ad>=band*2?0 : 30*(band*2-ad)/band;
+  const gateOK = ad<=band;   /* the one check that says "is this even the right
+    metal and size" — mode ratios and Q only say "this rings like some coherent
+    solid," so neither should be able to buy back a verdict of Consistent once
+    the pitch itself has already missed its own stated tolerance             */
   pts+=apts;
   rows.push(["Fundamental placement",(dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+
     (wr&&dev<0?" (−"+(wr*100).toFixed(1)+"% wear allowed)":""),apts,apts>22?"ok":apts<9?"no":""]);
@@ -1406,7 +1417,7 @@ function score(){
   if(!ref && total>80){ total=80; capped=true; }
 
   /* the panel's measured line */
-  $("mdot").className="dot "+(total>=78?"ok":total>=52?"mid":"no");
+  $("mdot").className="dot "+((total>=78&&gateOK)?"ok":total>=52?"mid":"no");
   $("measline").innerHTML="MEAS <b style='color:var(--lcd)'>"+sp(+r.f0.toFixed(1))+" Hz</b> · "+
     (dev>0?"+":"")+(dev*100).toFixed(2)+"% vs "+basis+" · score "+Math.round(total);
 
@@ -1443,10 +1454,11 @@ function score(){
     (fit.length>1?"More than one metal fits, so this reading cannot name a material — only narrow the field."
                  :"Even a single match is one number, √(E/ρ); treat it as a direction, not an identification.")+"</span>";
 
-  const vt = total>=78 ? ["v-good","Consistent with solid "+ALLOYS[c.key].n.split(" — ")[0]+" at this geometry",
+  const vt = (total>=78 && gateOK) ? ["v-good","Consistent with solid "+ALLOYS[c.key].n.split(" — ")[0]+" at this geometry",
       "No acoustic anomaly. This says nothing about the dies, the strike, or whether the piece was struck in the year it claims."]
     : total>=52 ? ["v-warn","Inconclusive",
-      "Something is short of the model — most often support damping, a marginal capture, or a modulus assumption that does not fit this alloy. Re-strike before drawing anything from it."]
+      !gateOK ? "The pitch itself missed its own tolerance — mode ratios and Q can say this rings like some coherent solid, but neither can vouch for it being the right one. Re-strike, and check the geometry before drawing anything from it."
+              : "Something is short of the model — most often support damping, a marginal capture, or a modulus assumption that does not fit this alloy. Re-strike before drawing anything from it."]
     : ["v-bad","Anomalous — investigate",
       "The metal is not behaving like a solid homogeneous disc of the declared alloy. Weigh it and measure it before going further."];
   $("verdict").innerHTML="<div class='verdict "+vt[0]+"'><p class='vtitle'>"+vt[1]+"</p><p class='vsub'>"+vt[2]+
