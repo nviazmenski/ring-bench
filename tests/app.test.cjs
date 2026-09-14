@@ -45,6 +45,44 @@ function synth(a,{freqs,amps,tau=.12,sr=48000,ambient=0}={}){
 }
 
 function synthetic(a,f){return synth(a,{freqs:[f],amps:[.1]});}
+
+test('resolved upper doublets survive at multiple sample rates without promoting sidelobes',async()=>{
+  const a=app('pro');
+  for(const sr of [44100,48000,96000]){
+    a.context.x=synth(a,{freqs:[5210,5428,12130,12165],amps:[.07,.09,.02,.025],tau:.25,sr});a.context.sr=sr;
+    const r=await a.run('analyseInner(x,sr,ringBench.current(),ringBench.snapshot(),{kind:"file"},Math.ceil(.06*sr))');
+    assert.equal(r.peaks.length,4);
+    assert.ok(r.peaks.every((p,i)=>Math.abs(p.f-[5210,5428,12130,12165][i])<1));
+    a.context.x=synth(a,{freqs:[12130],amps:[.3],tau:.2,sr});
+    const solo=await a.run('analyseInner(x,sr,ringBench.current(),ringBench.snapshot(),{kind:"file"},Math.ceil(.06*sr))');
+    assert.equal(solo.peaks.length,1,'a single tone must not create extra independent evidence');
+  }
+});
+
+test('separation uses captured duration, not a percentage or zero-padding bin spacing',()=>{
+  const a=app();
+  a.context.x=synth(a,{freqs:[12130,12133],amps:[.1,.1],tau:1});
+  const count=a.run('(()=>{const s=spectrum(x.slice(2880),48000,131072,"blackman-harris");return peaks(s.mag,s.binHz,12000,12300,14,s.resolutionHz).length})()');
+  assert.equal(count,1);
+});
+
+test('unverified user WAV regression: preserve four tones without manufacturing a three-mode pass',{
+  skip:!process.env.RINGBENCH_SAMPLE_DIR&&'Set RINGBENCH_SAMPLE_DIR to the local user recordings; audio is not shipped with the app.'
+},async()=>{
+  const files=fs.readdirSync(process.env.RINGBENCH_SAMPLE_DIR).filter(n=>/ringbench-tap-[123]-.*\.wav$/.test(n)).sort();
+  assert.equal(files.length,3);
+  const samples=files.map(n=>{const b=fs.readFileSync(path.join(process.env.RINGBENCH_SAMPLE_DIR,n));assert.equal(b.readUInt32LE(24),48000);assert.equal(b.readUInt16LE(34),16);return Float32Array.from({length:(b.length-44)/2},(_,i)=>b.readInt16LE(44+2*i)/32768);});
+  for(const edition of ['pro','lite']){
+    const a=app(edition);a.run('ringBench.chooseCoin(flat.findIndex(x=>x.n.startsWith("1 Rouble 1886")));ringBench.newSession({kind:"file"});');
+    for(const x of samples.slice(0,edition==='pro'?3:2)){a.context.x=x;assert.equal(await a.run('ringBench.accept(x,48000,ringBench.getState().session.id,{kind:"file"},2880)'),true);}
+    const e=a.run('screenReading(ringBench.getState().reading,ringBench.current(),'+(edition==='pro')+')');
+    assert.equal(e.fingerprint.tracks.length,4);
+    assert.ok(e.fingerprint.tracks.every((t,i)=>Math.abs(t.f-[5210,5428,12130,12165][i])<3));
+    assert.equal(e.fit.matchedModeCount,2);
+    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Insufficient independent modes':'Within model band');
+    assert.equal(e.fingerprint.envelope.outside.length,0);
+  }
+});
 async function tap(a,f){
   a.context.x=synthetic(a,f);
   return a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)");
@@ -62,7 +100,9 @@ test("clean ringing retains the old Lite peak and pitch estimates",async()=>{
   a.context.x=synthetic(a,f);old.context.x=a.context.x;
   const before=await old.run("analyseInner(x,48000,current(),settingsSnapshot(),{kind:'file'},2880)");
   const after=await a.run("analyseInner(x,48000,ringBench.current(),ringBench.snapshot(),{kind:'file'},2880)");
-  assert.equal(before.f0,after.f0);assert.deepEqual(JSON.parse(JSON.stringify(before.peaks.map(p=>p.f))),JSON.parse(JSON.stringify(after.peaks.map(p=>p.f))));
+  // The low-sidelobe window changes interpolation slightly, not the pitch.
+  assert.ok(Math.abs(before.f0-after.f0)<.01);assert.equal(after.peaks.length,before.peaks.length);
+  assert.ok(after.peaks.every((p,i)=>Math.abs(p.f-before.peaks[i].f)<.01));
   assert.ok(after.peaks.every(p=>Number.isFinite(p.persistenceDropDb)));
 });
 test("brief impact clipping is accepted but clipping in the ringing tail is rejected",async()=>{
@@ -126,7 +166,7 @@ test("one pitch-only tap is useful; Lite completes on two and Pro completes on t
   for(const edition of ["lite","pro"]){
     const a=app(edition),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");
     assert.equal(await tap(a,f),true);assert.equal(a.run("ringBench.getState().reading.complete"),false);
-    assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,edition==="lite"?"Compatible · provisional":"Inconsistent");
+    assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,edition==="lite"?"Within model band · provisional":"Inconclusive");
     await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),edition==="lite");
     if(edition==="pro"){await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),true);}
     assert.equal(a.run("ringBench.getState().reading.commonModes.length"),0);

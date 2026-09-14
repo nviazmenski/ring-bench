@@ -115,3 +115,28 @@ test('an independently verified unresolved pattern can be stored as a modal fing
   assert.equal(run('validReference(unresolvedReference)'),true);
   assert.equal(run('unresolvedReference.fingerprint.tracks.length'),2);
 });
+
+test('resolved neighbors keep separate identities and a missing neighbor cannot substitute',()=>{
+  run(`globalThis.neighbors=makeReading([5210,12130,12165]);
+    neighbors.strikes[1].peaks=neighbors.strikes[1].peaks.filter(p=>p.f!==12130);
+    globalThis.nt=recurringPeaks(neighbors);`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(nt.map(t=>t.f))')),[5210,12165]);
+  run(`neighbors.strikes[1].peaks.push({f:12131,snrDb:30});globalThis.nt2=recurringPeaks(neighbors);`);
+  assert.equal(run('nt2.length'),3);
+  assert.ok(run('nt2.every(t=>Math.max(...t.frequencies)-Math.min(...t.frequencies)<=1)'));
+});
+
+test('a close-frequency group never supplies two independent joint assignments',()=>{
+  run(`globalThis.closeReading=makeReading([...g.f,g.f[2]*1.002]);globalThis.closeFit=fitGeometryFamily(closeReading,c);`);
+  assert.ok(run('closeFit.results.every(f=>new Set(f.matches.map(m=>m.familyIndex)).size===f.matches.length)'));
+});
+
+test('evidence labels distinguish missing modes, unresolved identity and an outside-model result',()=>{
+  run(`globalThis.coinR=flat.find(x=>x.n.startsWith('1 Rouble 1886'));globalThis.coinRC={name:coinR.n,key:coinR.a,mass:coinR.m,dia:coinR.d,rho:rhoOf(coinR.a),E:ALLOYS[coinR.a].E,nu:ALLOYS[coinR.a].nu};globalThis.r4=makeReading([5210,5428,12130,12165]);globalThis.e4=screenReading(r4,coinRC,true);`);
+  assert.equal(run('e4.fit.matchedModeCount'),2);
+  assert.equal(run('resultTitle(e4,true)'),'Insufficient independent modes');
+  assert.equal(run('resultTitle(screenReading(makeReading([1000]),coinRC,true),true)'),'Outside model');
+  assert.equal(run('resultTitle({state:"evidence",diagnostic:"model-unresolved"},true)'),'Model fit unresolved');
+  assert.equal(run('resultTitle({state:"inconclusive"},true)'),'Inconclusive');
+  assert.equal(run('resultTitle(screenReading(makeReading(g.f.slice(0,3)),c,true),true)'),'Model consistent');
+});

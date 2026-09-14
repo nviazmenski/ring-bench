@@ -1,5 +1,17 @@
 # RingBench geometry family, revision 3
 
+## Acoustic interpretation update — Pro 4.4 / Lite 3.2
+
+The forward geometry solver and all nuisance/fit tolerances are unchanged. This update improves measurement resolution and interpretation, not the modeled coin shape or an empirical authenticity calibration.
+
+The detector uses a four-term Blackman–Harris window. A spectral peak pair must be at least 4/T apart (T is the actual analyzed duration, not the zero-padded FFT length), with a valley at least 6 dB below the weaker peak. The old 1.2% suppression is removed. Close components use 0–240 and 240–520 ms post-skip windows to check persistence; other tones use 0–80 and 80–200 ms. Persistence neighborhoods are limited to a quarter of the nearest candidate gap to avoid borrowing energy from a neighbor. Early/late level changes are descriptive and the window pair is retained with each peak.
+
+Across taps, a candidate match must be within the existing 1% cap AND within 45% of the nearest within-tap neighbor gap at each end. Resolved neighbors cannot stand in for one another. Only tracks present in every accepted tap contribute to fitting; other observations are displayed separately. These rules trade sensitivity for conservative identity tracking and require wider empirical validation.
+
+Close-frequency grouping remains descriptive at 3%; it is not a validated splitting limit. Members of the same group may not fill two independent slots in a three-mode joint assignment. Sharing a theoretical mode envelope is displayed as a limitation, not as proof of splitting. The model remains axisymmetric and cannot account for general relief, anisotropy, or pinger-contact perturbations.
+
+UI outcomes distinguish insufficient independent modes and unresolved fits from observations outside the current model. Lite's positive result is explicitly only a provisional lowest-mode band comparison. A good two-mode ratio is useful evidence but does not satisfy Pro's unchanged three-independent-mode requirement.
+
 This is an exploratory forward model, not an authenticity calibration. The parameter ranges below are explicit engineering assumptions, not measured population limits. Do not tune them to make an unverified specimen pass.
 
 ## Shape and conservation of mass
