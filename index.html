@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0c0d"><title>RingBench has moved</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0a0c0d;color:#d3dce0;font:17px/1.6 system-ui,sans-serif}main{max-width:680px;margin:10vh auto;padding:28px}h1{font:2.3rem Georgia,serif;color:#d5b373}a{color:#d5b373}nav{display:grid;gap:14px;margin:28px 0}nav a,button{padding:16px 20px;border:1px solid #43505a;border-radius:12px;background:#151c20;color:#d3dce0;font:inherit;text-decoration:none}nav a:hover,button:hover{background:#253039}small{color:#95a3ac}button{cursor:pointer}#status{min-height:2em}
+</style>
+</head>
+<body><main>
+<h1>RingBench has moved.</h1>
+<p>The previous app is retired. Choose the interface that fits your check:</p>
+<nav aria-label="New applications">
+<a href="https://ringbench-lite.bubbling-goulash.chatgpt.site">RingBench Lite — quick field checks</a>
+<a href="https://ringbench-pro.bubbling-goulash.chatgpt.site">RingBench Pro — measurements, evidence and modelling</a>
+</nav>
+<p><small>The new sites currently require the owner’s sign-in. Open them in Safari to add their own Home Screen shortcuts.</small></p>
+<h2>Keep your references</h2>
+<p>References stored at this old address cannot move automatically. Export them here, then import the file in Lite or Pro. This does not delete your stored data.</p>
+<button type="button" id="backup">Export old references</button>
+<p id="status" role="status"></p>
+<p><small>After backing up, the repository owner can fully unpublish the old site in GitHub’s Pages settings. RingBench is supporting acoustic evidence, not a composition certificate.</small></p>
+</main>
+<script>
+"use strict";
+document.getElementById("backup").onclick=()=>{
+  const status=document.getElementById("status");
+  try{
+    const references={};
+    for(const key of ["ringbench.refs","ringbench.lite.refs.v1","ringbench.references.v2"]){
+      const raw=localStorage.getItem(key);if(!raw)continue;
+      const entries=JSON.parse(raw);
+      if(entries&&typeof entries==="object")for(const [id,ref] of Object.entries(entries))references[key+"|"+id]=ref;
+    }
+    if(!Object.keys(references).length){status.textContent="No references were found in this browser at the old address.";return;}
+    const blob=new Blob([JSON.stringify({format:"ringbench-reference-backup",version:1,references},null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="ringbench-old-references.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+    status.textContent="Exported "+Object.keys(references).length+" stored references. Import and review their provenance in the new app.";
+  }catch{status.textContent="Browser storage could not be read. Your stored data has not been changed.";}
+};
+if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});
+</script></body></html>
