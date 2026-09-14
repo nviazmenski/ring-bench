@@ -1,5 +1,21 @@
 # RingBench Lite and RingBench Pro — geometry-family edition
 
+## Pro 4.4 / Lite 3.2 — resolved acoustic evidence
+
+The shared detector now uses a low-sidelobe Blackman–Harris window. Neighboring peaks are retained only when separated by at least four inverse-record-duration units and a 6 dB spectral valley. The former 1.2% frequency-spacing suppression is removed. Zero padding does not imply extra physical resolution. These remain engineering detection heuristics, not calibrated error bars.
+
+Close lines use longer, separate persistence windows and neighborhood-bounded checks. Recurrence matching keeps the 1% maximum but further limits matching by 45% of the nearest neighboring frequency separation in each tap, preventing resolved doublets from swapping identities when their loudness changes or a component is missing. A possible split group can contribute at most one assignment to a joint fit. The 3% descriptive grouping limit and all material/geometry tolerances are unchanged; asymmetric geometry is still not modeled.
+
+Pro now separates **Model consistent**, **Insufficient independent modes**, **Model fit unresolved**, **Inconclusive**, and **Outside model**. An unresolved or insufficient observation is never titled “Inconsistent.” Lite reports **Within model band**, **Inconclusive**, or **Outside model** and explains that it is a pitch screen, not a three-mode material assessment. All-tap recurring evidence remains the scoring input; other per-tap peaks are visible separately, not silently counted as corroborated modes. The Evidence view explains shared mode envelopes and lists peaks for every tap.
+
+Measurement export format 5 includes the detector identifier. Previously saved recordings and references remain unchanged; an earlier-detector notice explains when to re-record or reload WAVs to obtain the improved peak detection. No device-local storage is deleted or promoted into verified ground truth.
+
+Synthetic checks cover close doublets at 44.1/48/96 kHz, single-tone sidelobe rejection, duration-limited resolution, missing-neighbor identity, distinct-family assignments and verdict semantics. A local, opt-in regression also checks the supplied unverified rouble WAVs; it does not bundle recordings or treat the specimen as authenticated. Run it with `RINGBENCH_SAMPLE_DIR=/path/to/recordings node --test tests/*.test.cjs`.
+
+Current private sites: [Pro](https://ringbench-pro.ds5kyf92rk.chatgpt.site) · [Lite](https://ringbench-lite.ds5kyf92rk.chatgpt.site).
+
+The sections below document earlier revisions and historical deployments.
+
 [RingBench Lite](https://ringbench-lite.bubbling-goulash.chatgpt.site) offers a quick ping check with a provisional compatibility band and Compatible / Inconclusive / Anomalous outcomes. [RingBench Pro](https://ringbench-pro.bubbling-goulash.chatgpt.site) adds recurring-peak fitting across centre/rim geometries, separate material and geometry results, recordings and reference specimens. Its field-facing verdicts are Consistent / Inconsistent / Anomalous; the accompanying text states the narrower acoustic interpretation.
 
 Open in Safari to add either app to the Home Screen. These Sites deployments retain owner-only access. The source contains a retirement page prepared for the old GitHub Pages address, but GitHub rejected repository writes: the old site has NOT been retired or unpublished by this update.

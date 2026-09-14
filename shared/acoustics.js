@@ -1,6 +1,7 @@
 "use strict";
 const RULES=Object.freeze({repeatability:.01,modeTolerance:.05,referencePitch:.015,minSnrDb:10,minDecayR2:.90,minDecaySpanDb:8});
 const PRE=.06,CAP=.60;
+const DETECTOR_VERSION="resolved-peaks-v2";
 const CAPTURE_RULES=Object.freeze({calibrationSeconds:.6,impactGraceMs:20,minimumRiseDb:10,persistenceSnrDb:8});
 const P=c=>predict(c.mass,c.dia,c.rho,c.E,c.nu,c.qmat,c.sup,c.hmm);
 function median(xs){const a=xs.slice().sort((a,b)=>a-b);return a.length%2?a[a.length>>1]:(a[a.length/2-1]+a[a.length/2])/2;}
@@ -61,23 +62,29 @@ function captureBody(x,sr,onset,skipMs){
 // A long FFT can turn a brief noise burst into apparently narrow peaks. Require
 // the same tone in two separate post-impact windows, above the pre-strike sound.
 function persistentTones(pk,body,sr,preSpec,preLength,impulsive=false){
-  const windows=[body.slice(0,Math.floor(.08*sr)),body.slice(Math.floor(.08*sr),Math.floor(.20*sr))];
-  const spectra=windows.map(w=>spectrum(w,sr,32768));
+  const short=[body.slice(0,Math.floor(.08*sr)),body.slice(Math.floor(.08*sr),Math.floor(.20*sr))];
+  const long=[body.slice(0,Math.floor(.24*sr)),body.slice(Math.floor(.24*sr),Math.floor(.52*sr))];
+  const spectraFor=ws=>ws.map(w=>spectrum(w,sr,32768,"blackman-harris"));
+  const shortSpectra=spectraFor(short),longSpectra=spectraFor(long);
   return pk.filter(p=>{
+    const gap=Math.min(Infinity,...pk.filter(q=>q!==p).map(q=>Math.abs(q.f-p.f)));
+    // Closely spaced lines need longer independent windows. Never borrow the
+    // neighboring line's amplitude to establish persistence of this line.
+    const close=gap<Math.max(100,p.f*.012),windows=close?long:short,spectra=close?longSpectra:shortSpectra;
     const amplitudes=[];
     const stable=spectra.every((s,k)=>{
-    const bin=Math.round(p.f/s.binHz),radius=Math.max(2,Math.ceil(p.f*.006/s.binHz));
+    const bin=Math.round(p.f/s.binHz),radius=Math.max(1,Math.floor(Math.min(Math.max(2*s.binHz,p.f*.006),gap*.25)/s.binHz));
     let value=0,at=bin,ambient=0;
     for(let d=-radius;d<=radius;d++)if((s.mag[bin+d]||0)>value){value=s.mag[bin+d];at=bin+d;}
     for(let d=-radius;d<=radius;d++)ambient=Math.max(ambient,preSpec.mag[bin+d]||0);
-    const neighbors=[],span=Math.ceil(Math.max(300,p.f*.05)/s.binHz),exclude=Math.ceil(2*sr/windows[k].length/s.binHz);
+    const neighbors=[],span=Math.ceil(Math.max(300,p.f*.05)/s.binHz),exclude=Math.ceil(4*sr/windows[k].length/s.binHz);
     for(let d=-span;d<=span;d++)if(Math.abs(d)>exclude&&at+d>1&&at+d<s.mag.length)neighbors.push(s.mag[at+d]);
     const local=median(neighbors),noise=Math.max(local,ambient*windows[k].length/preLength);
     amplitudes.push(value/windows[k].length);
     return value>0&&20*Math.log10((value+1e-30)/(noise+1e-30))>=CAPTURE_RULES.persistenceSnrDb;
     });
     const persistenceDropDb=amplitudes.length===2?20*Math.log10((amplitudes[0]+1e-30)/(amplitudes[1]+1e-30)):NaN;
-    if(stable)p.persistenceDropDb=persistenceDropDb;
+    if(stable){p.persistenceDropDb=persistenceDropDb;p.persistenceWindows=close?"0–240 / 240–520 ms":"0–80 / 80–200 ms";}
     // A flat switched-on tone has neither a distinct impact nor a falling ring.
     // This modest change check is not a Q fit; an impulsive strike can keep a
     // very long-lived tone without meeting it.
@@ -146,17 +153,17 @@ function fft(re,im){
       }}}
 }
 
-function spectrum(x,sr,N){
+function spectrum(x,sr,N,windowName="hann"){
   const re=new Float64Array(N), im=new Float64Array(N);
   const L=Math.min(x.length,N);
-  for(let i=0;i<L;i++){ const w=0.5-0.5*Math.cos(2*Math.PI*i/(L-1)); re[i]=x[i]*w; }
+  for(let i=0;i<L;i++){const a=2*Math.PI*i/(L-1);const w=windowName==="blackman-harris"?.35875-.48829*Math.cos(a)+.14128*Math.cos(2*a)-.01168*Math.cos(3*a):.5-.5*Math.cos(a);re[i]=x[i]*w;}
   fft(re,im);
   const half=N>>1, mag=new Float64Array(half);
   for(let i=0;i<half;i++) mag[i]=Math.sqrt(re[i]*re[i]+im[i]*im[i]);
-  return {mag, binHz:sr/N};
+  return {mag,binHz:sr/N,resolutionHz:sr/L,windowName};
 }
 
-function peaks(mag,binHz,fmin,fmax,maxN){
+function peaks(mag,binHz,fmin,fmax,maxN,resolutionHz=binHz){
   const i0=Math.max(2,Math.floor(fmin/binHz)), i1=Math.min(mag.length-3,Math.ceil(fmax/binHz));
   let peak=0; for(let i=i0;i<=i1;i++) if(mag[i]>peak) peak=mag[i];
   if(peak<=0) return [];
@@ -172,11 +179,18 @@ function peaks(mag,binHz,fmin,fmax,maxN){
     if(db-20*Math.log10(acc[acc.length>>1]+1e-30)<8) continue;
     const a=20*Math.log10(mag[i-1]+1e-30),b=db,c=20*Math.log10(mag[i+1]+1e-30);
     const d=0.5*(a-c)/(a-2*b+c||1e-9);
-    out.push({f:(i+d)*binHz, db:b-floorDb, mag:mag[i]});
+    out.push({f:(i+d)*binHz,db:b-floorDb,mag:mag[i],bin:i,resolutionHz});
   }
   out.sort((p,q)=>q.mag-p.mag);
   const keep=[];
-  for(const p of out){ if(!keep.some(k=>Math.abs(k.f-p.f)/p.f<0.012)) keep.push(p); if(keep.length>=maxN) break; }
+  for(const p of out){
+    const unresolved=keep.some(k=>{
+      if(Math.abs(k.f-p.f)<4*resolutionHz)return true;
+      let valley=Infinity;for(let i=Math.min(k.bin,p.bin);i<=Math.max(k.bin,p.bin);i++)valley=Math.min(valley,mag[i]);
+      return valley>Math.min(k.mag,p.mag)*Math.pow(10,-6/20);
+    });
+    if(!unresolved)keep.push(p);if(keep.length>=maxN)break;
+  }
   return keep.sort((p,q)=>p.f-q.f);
 }
 
@@ -215,8 +229,8 @@ async function analyseInner(x,sr,c,settings,source,onset,ref=null){
   if(!Number.isFinite(sr)||sr<8000)throw new Error("Unsupported audio sample rate.");
   const quality=captureBody(x,sr,onset,settings.skipMs),body=quality.body;
   const usableHz=Math.min(22000,.45*sr,source?.trackRate ? .45*source.trackRate : Infinity);
-  const S=spectrum(body,sr,32768),preRoll=x.slice(0,onset),Sn=spectrum(preRoll,sr,32768);
-  let pk=peaks(S.mag,S.binHz,220,usableHz,14);
+  const S=spectrum(body,sr,32768,"blackman-harris"),preRoll=x.slice(0,onset),Sn=spectrum(preRoll,sr,32768,"blackman-harris");
+  let pk=peaks(S.mag,S.binHz,220,usableHz,14,S.resolutionHz);
   if(!pk.length)throw new Error("No usable tonal peaks. No acoustic result for this capture.");
   const i0=Math.max(2,Math.floor(220/S.binHz)),i1=Math.min(S.mag.length-3,Math.ceil(usableHz/S.binHz));
   let peak=0,sum=0;for(let i=i0;i<=i1;i++){peak=Math.max(peak,S.mag[i]);sum+=S.mag[i];}
@@ -242,7 +256,7 @@ async function analyseInner(x,sr,c,settings,source,onset,ref=null){
     decayFit=decay(await bandpassRender(body),sr,Math.sqrt(ns/noise.length));
     if(decayFit.valid){tau=decayFit.tau;q=Math.PI*f0*tau;}
   }catch(e){}
-  return {sr,f0,pitchRole:"dominant-tone",pcm:x.slice(),onset,peaks:pk,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
+  return {sr,f0,pitchRole:"dominant-tone",detectorVersion:DETECTOR_VERSION,pcm:x.slice(),onset,peaks:pk,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
     offwindow:selected.offwindow,matches:selected.matches,crestDb,captureQuality:{impactClippedSamples:quality.impactClipped,tailClippedSamples:quality.tailClipped,riseDb:quality.riseDb,analysisSkipMs:(quality.skip-onset)*1000/sr},settings:{...settings},source:{...source},when:new Date().toISOString()};
 }
 

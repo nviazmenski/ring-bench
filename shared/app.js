@@ -93,17 +93,22 @@ function startRingBench({edition,target,build}){
     renderSpecimens(c);
     for(const id of ["playRecorded","saveaudio","exporttest","saveSession"])if($(id))$(id).disabled=!reading||armed||busy||requesting;
     if(reading){
-      const e=screenReading(reading,analysisCoin,pro),titles=pro?{compatible:"Consistent",evidence:"Inconsistent",inconclusive:"Inconsistent",anomalous:"Anomalous"}:{compatible:"Compatible",evidence:"Inconclusive",inconclusive:"Inconclusive",anomalous:"Anomalous"};
+      const e=screenReading(reading,analysisCoin,pro);
       const summary=e.reason+(e.provisional?" One tap only; repeat to confirm.":"")+(e.state==="compatible"?" Theoretical acoustic compatibility does not identify the material.":"");
-      const verdict=titles[e.state]+(e.provisional&&e.state==="compatible"?" · provisional":"");
+      const verdict=resultTitle(e,pro)+(e.provisional&&e.state==="compatible"?" · provisional":"");
       put("resultTitle",verdict);put("resultSummary",summary);$("result").dataset.state=e.state;
       if(pro&&$("resultDesktop")){put("resultTitleDesktop",verdict);put("resultSummaryDesktop",summary);$("resultDesktop").hidden=false;$("resultDesktop").dataset.state=e.state;}
       const evidence=[
         ["Persistent resonance tracks",fingerprint.tracks.length?fingerprint.tracks.map(t=>t.f.toFixed(1)+" Hz ["+t.frequencies.map(f=>f.toFixed(1)).join(" / ")+"]").join("; "):"None retained across every tap"],
         ["Pattern repeatability",fingerprint.repeatable?fingerprint.tracks.length+" track(s), each within 1% across all taps":"Not established"],
+        ["Peak tracking","Resolved neighbors are tracked separately; matching is limited by their spacing as well as the 1% cap."],
+        ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved":"Earlier detector. Record again or reload exported WAVs to recover closely spaced peaks; the saved capture is unchanged."],
+        ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required in Pro. Nearby components of one possible split family cannot count twice."],
+        ["Other observed peaks",reading.strikes.map((s,i)=>{const others=s.peaks.filter(p=>!fingerprint.tracks.some(t=>t.observations.some(o=>o.tap===i&&o.f===p.f)));return others.length?"Tap "+(i+1)+": "+others.map(p=>p.f.toFixed(1)+" Hz").join(", "):null;}).filter(Boolean).join("; ")||"None beyond the recurring tracks"],
         ["Modal-family structure",fingerprint.families.length?fingerprint.families.map(f=>f.harmonicOf!==undefined?f.centre.toFixed(1)+" Hz · possible "+f.harmonicOrder+"× harmonic of "+fingerprint.families[f.harmonicOf].centre.toFixed(1)+" Hz":f.tracks.length>1?f.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · possible split "+(f.split*100).toFixed(2)+"%":f.centre.toFixed(1)+" Hz · separate track").join("; "):"Unavailable"],
         ["Recurring ratios",fingerprint.ratios.length?fingerprint.ratios.map(x=>x.observed.toFixed(4)+(x.joint?" · joint model support":" · no joint absolute assignment")).join("; "):"Need at least two separate modal families"],
         ["Mode-envelope check",fingerprint.envelope?.assignments.length?fingerprint.envelope.assignments.map(a=>a.family.centre.toFixed(1)+" Hz: "+(a.excludedAsHarmonic?"possible harmonic · excluded from scoring":a.outside?"outside every modeled mode":"possible mode "+a.possible.map(x=>x.mode+1).join(" / "))).join("; "):"Unavailable"],
+        ["Shared mode envelopes",fingerprint.envelope?.assignments.flatMap((a,i,all)=>all.slice(i+1).filter(b=>!a.excludedAsHarmonic&&!b.excludedAsHarmonic&&a.possible.some(m=>b.possible.some(n=>n.mode===m.mode))).map(b=>a.family.centre.toFixed(1)+" / "+b.family.centre.toFixed(1)+" Hz share a modeled mode range; this does not establish separate modes or prove splitting.")).join("; ")||"None among the recurring families"],
         ["Loudest resonances",reading.strikes.map(s=>s.f0.toFixed(1)).join(" / ")+" Hz"],
         ["Mode identity",estimate.reason],
         ["Early/late persistence",fingerprint.decay.length?fingerprint.decay.map(x=>x.f.toFixed(0)+" Hz: "+x.earlyLateDb.toFixed(1)+" dB change").join("; ")+" · descriptive only":"Unavailable; excluded from compatibility"],
@@ -127,7 +132,7 @@ function startRingBench({edition,target,build}){
       }
       if(pro)evidence.push(["Q · loudest resonance",reading.strikes.map(s=>Number.isFinite(s.q)?Math.round(s.q):"Unavailable").join(" / ")],["Input limit",Math.round(reading.usableHz)+" Hz · actual bandwidth unverified"]);
       table("evidenceRows",evidence);
-      if(pro){table("peakRows",reading.peaks.map(p=>[p.f.toFixed(1)+" Hz",estimate.f0!==null?(p.f/estimate.f0).toFixed(4):"—",p.snrDb.toFixed(1)+" dB"]));table("strikeRows",reading.strikes.map((s,i)=>["Tap "+(i+1)+" · loudest",s.f0.toFixed(1)+" Hz",s.decayFit.valid?"Q "+Math.round(s.q):"Q unavailable"]));}
+      if(pro){table("peakRows",reading.strikes.flatMap((s,i)=>s.peaks.map(p=>["Tap "+(i+1)+" · "+p.f.toFixed(1)+" Hz",estimate.f0!==null?(p.f/estimate.f0).toFixed(4):"—",p.snrDb.toFixed(1)+" dB"])));table("strikeRows",reading.strikes.map((s,i)=>["Tap "+(i+1)+" · loudest",s.f0.toFixed(1)+" Hz",s.decayFit.valid?"Q "+Math.round(s.q):"Q unavailable"]));}
     }else{table("evidenceRows",[]);if(pro){table("peakRows",[]);table("strikeRows",[]);table("ringEvidenceRows",[]);if($("ringEvidenceEmpty"))$("ringEvidenceEmpty").hidden=false;if($("resultDesktop")){put("resultTitleDesktop","Evidence");put("resultSummaryDesktop","Record a tap to assess compatibility and repeatability.");$("resultDesktop").hidden=false;delete $("resultDesktop").dataset.state;}}}
     if(pro)renderModel(c);
     requestAnimationFrame(drawSpectrum);
@@ -168,6 +173,7 @@ function startRingBench({edition,target,build}){
       const gs=[...unique.values()];
       put("geometryUncertainty",unique.size+" sampled shapes remain possible; rim width "+(100*Math.min(...gs.map(g=>g.width))).toFixed(1)+"–"+(100*Math.max(...gs.map(g=>g.width))).toFixed(1)+"% of radius, rim/centre ratio "+Math.min(...gs.map(g=>g.ratio)).toFixed(2)+"–"+Math.max(...gs.map(g=>g.ratio)).toFixed(2)+". This does not resolve geometry outside the sampled family.");
     }else put("geometryUncertainty",fit?"Geometry remains unresolved. A missing joint fit can reflect the model, material, or mode assignment.":"Geometry uncertainty will be shown separately from material compatibility.");
+    if(fit&&fit.state!=="compatible"&&(fit.matchedModeCount||0)>0)put("materialFit",fit.observed.length+" recurring tone(s); the best supported assignment contains "+fit.matchedModeCount+" distinct modeled modes. Three are required. This is insufficient model evidence, not a failed coin test.");
     const best=fit?.best;
     put("fitResidual",best?"Best candidate: "+best.matches.length+" peaks; frequency RMS residual "+(best.residual*100).toFixed(2)+"%, largest ratio residual "+(best.ratioResidual*100).toFixed(2)+"%. Common scale "+best.scale.toFixed(4)+".":"No joint peak assignment yet.");
     table("fitRows",best?best.matches.map(p=>[p.measured.toFixed(1),MODES[p.mode].id,(p.predicted*best.scale).toFixed(1),(p.measured/best.matches[0].measured).toFixed(4),(p.predicted/best.matches[0].predicted).toFixed(4)]):[]);
@@ -272,7 +278,7 @@ function startRingBench({edition,target,build}){
   const stamp=()=>new Date().toISOString().replace(/[:.]/g,"-");
   function exportTest(){
     if(!reading)return;const r=reading;
-    json({format:"ringbench-test",version:4,edition,build,model:GEOMETRY_MODEL,settings:r.settings,source:r.source,reference:r.referenceUsed,
+    json({format:"ringbench-test",version:5,edition,build,detector:DETECTOR_VERSION,model:GEOMETRY_MODEL,settings:r.settings,source:r.source,reference:r.referenceUsed,
       medianHz:r.f0,spread:r.spread,complete:r.complete,rules:RULES,captureRules:CAPTURE_RULES,evaluation:screenReading(r,session.spec,pro),acousticFingerprint:acousticFingerprint(r,session.spec),geometryFit:pro&&r.complete?fitGeometryFamily(r,session.spec):null,
       strikes:r.strikes.map(({pcm,mag,...s},i)=>({...s,tap:i+1,audioSamples:pcm.length,mag:Array.from(mag)})),audioNote:"Export WAV separately for each tap; timestamps identify matching audio."},"ringbench-test-"+stamp()+".json");
   }

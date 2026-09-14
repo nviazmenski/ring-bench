@@ -87,7 +87,13 @@ function recurringPeaks(reading){
   if(!reading?.strikes?.length)return [];
   const strikes=reading.strikes,first=strikes[0],used=strikes.map(()=>new Set()),out=[];
   for(const p of first.peaks.slice().sort((a,b)=>a.f-b.f)){
-    const picks=strikes.slice(1).map((s,k)=>s.peaks.map((q,i)=>({i,f:q.f,error:Math.abs(q.f/p.f-1)})).filter(q=>!used[k+1].has(q.i)&&q.error<=.01).sort((a,b)=>a.error-b.error)[0]);
+    // The 1% cap is not permission to switch between resolved neighbors.
+    // Bound each match by half the nearest within-tap separation at both ends.
+    const referenceGap=Math.min(Infinity,...first.peaks.filter(q=>q!==p).map(q=>Math.abs(q.f-p.f)));
+    const picks=strikes.slice(1).map((s,k)=>s.peaks.map((q,i)=>{
+      const gap=Math.min(Infinity,...s.peaks.filter(v=>v!==q).map(v=>Math.abs(v.f-q.f)));
+      return {i,f:q.f,error:Math.abs(q.f-p.f),limit:Math.min(p.f*.01,referenceGap*.45,gap*.45)};
+    }).filter(q=>!used[k+1].has(q.i)&&q.error<=q.limit).sort((a,b)=>a.error-b.error)[0]);
     if(!picks.every(Boolean))continue;
     const observations=[{tap:0,...p},...picks.map((pick,k)=>({tap:k+1,...strikes[k+1].peaks[pick.i]}))].map(o=>({...o,relativeDb:20*Math.log10(((o.mag||0)+1e-30)/(Math.max(...strikes[o.tap].peaks.map(p=>p.mag||0))+1e-30))})),fs=observations.map(p=>p.f),mid=median(fs),spread=(Math.max(...fs)-Math.min(...fs))/mid;if(spread>.01)continue;
     picks.forEach((p,k)=>used[k+1].add(p.i));out.push({f:mid,frequencies:fs,spread,support:observations.length,snrDb:median(observations.map(p=>p.snrDb||0)),relativeDb:median(observations.map(p=>p.relativeDb)),relativeRangeDb:Math.max(...observations.map(p=>p.relativeDb))-Math.min(...observations.map(p=>p.relativeDb)),persistenceDropDb:median(observations.map(p=>p.persistenceDropDb).filter(Number.isFinite)),observations});
@@ -119,7 +125,7 @@ function modalFamilies(reading,splitPct=MODE_SPLIT_CLUSTER_PCT){
   return result;
 }
 function scoringFamilies(reading){return modalFamilies(reading).filter(f=>f.harmonicOf===undefined);}
-function scoringTracks(reading){return scoringFamilies(reading).flatMap(f=>f.tracks);}
+function scoringTracks(reading){return scoringFamilies(reading).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index})));}
 function plateRatioEvidence(reading,c){
   const family=geometryFamily(c),families=scoringFamilies(reading),pairs=[];
   if(!family.valid)return pairs;
@@ -174,12 +180,13 @@ function fitGeometryFamily(reading,c){
     for(const anchor of observed){
     const upper=observed.filter(p=>p.f>anchor.f*1.08).slice(0,12);
     for(let root=0;root<modes.length;root++){
-      const base=modes[root],pairs=[{measured:anchor.f,predicted:base.f,mode:base.i}],paths=[];
+      const base=modes[root],pairs=[{measured:anchor.f,predicted:base.f,mode:base.i,familyIndex:anchor.familyIndex}],paths=[];
       function visit(pi,mi,current){
         paths.push(current);
         for(let p=pi;p<upper.length;p++)for(let m=mi;m<modes.length;m++){
+          if(current.some(v=>v.familyIndex===upper[p].familyIndex))continue;
           const ratioError=Math.abs((upper[p].f/anchor.f)/(modes[m].f/base.f)-1);
-          if(ratioError<=tolerance+2*g.numericalError)visit(p+1,m+1,current.concat({measured:upper[p].f,predicted:modes[m].f,mode:modes[m].i}));
+          if(ratioError<=tolerance+2*g.numericalError)visit(p+1,m+1,current.concat({measured:upper[p].f,predicted:modes[m].f,mode:modes[m].i,familyIndex:upper[p].familyIndex}));
         }
       }
       visit(0,root+1,pairs);
@@ -198,7 +205,8 @@ function fitGeometryFamily(reading,c){
   }
   results.sort((a,b)=>Number(b.supported)-Number(a.supported)||b.matches.length-a.matches.length||a.residual-b.residual);
   const best=results[0]||null,supported=results.filter(r=>r.supported&&r.matches.length>=3);
-  const result={family,observed,results:results.slice(0,30),identityFits:results.filter(r=>r.supported),best,supported,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
+  const identityFits=results.filter(r=>r.supported),matchedModeCount=Math.max(0,...identityFits.map(r=>r.matches.length));
+  const result={family,observed,results:results.slice(0,30),identityFits,best,supported,matchedModeCount,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
   cache.set(cacheKey,result);fitCache.set(reading,cache);return result;
 }
 
@@ -240,5 +248,17 @@ function screenReading(r,c,requirePattern=false){
   else if(requirePattern&&provisional){state="inconclusive";reason="One tap was retained. Pro needs repeated modal evidence before interpreting compatibility.";}
   else if(requirePattern&&position!=="anomalous"&&fit.state!=="compatible"){state="evidence";reason=fingerprint.tracks.length===1?"One repeatable resonance is consistent with the provisional band, but Pro requires a coherent multi-mode pattern for positive theoretical compatibility.":"Repeatable resonances were retained, but fewer than three jointly fitted modes cannot establish theoretical material compatibility.";}
   else reason=position==="compatible"?"The measured modal pattern and absolute frequencies fit the provisional geometry and material family.":position==="anomalous"?"The repeated tone lies well outside this model family. Fundamental identity may still be uncertain; investigate further.":"The fundamental candidate is near a band edge. Geometry or material assumptions could change the result.";
-  return {state,reason,band,repeatable,provisional,estimate,fingerprint,fit};
+  const matched=fit.matchedModeCount||0;
+  if(!requirePattern&&state==="compatible")reason="The estimated lowest-mode frequency falls within the provisional model band. Lite is a pitch screen, not a three-mode material assessment.";
+  const diagnostic=state==="anomalous"?"outside-model":state==="compatible"?"model-consistent":state==="evidence"?(matched===2||fit.state==="insufficient"?"insufficient-modes":"model-unresolved"):"inconclusive";
+  if(requirePattern&&diagnostic==="insufficient-modes")reason=fingerprint.tracks.length+" repeatable tone(s) retained. "+(matched?"The best supported joint fit explains "+matched+" distinct modeled modes; Pro requires three. Unassigned tones remain unexplained.":"Fewer than three independent modes are established; Pro cannot assess positive model consistency.")+" This is insufficient evidence, not a failed coin test.";
+  return {state,reason,diagnostic,band,repeatable,provisional,estimate,fingerprint,fit};
+}
+
+function resultTitle(e,pro){
+  if(e.state==="compatible")return pro?"Model consistent":"Within model band";
+  if(e.state==="anomalous")return "Outside model";
+  if(pro&&e.diagnostic==="insufficient-modes")return "Insufficient independent modes";
+  if(pro&&e.state==="evidence")return "Model fit unresolved";
+  return "Inconclusive";
 }
