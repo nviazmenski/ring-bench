@@ -1,5 +1,11 @@
 # RingBench Lite and RingBench Pro — geometry-family edition
 
+## Pro 4.5 / Lite 3.3 — primary resonance accounting
+
+The verdict now identifies the primary acoustic family from the strongest recurring measured component before comparing it with theory. When that family falls in the expected lowest-mode band, an unexplained weaker family no longer turns the whole observation into **Outside model**. Pro reports **Primary resonance consistent** and keeps the secondary pattern unresolved; Lite reports **Within model band** and retains the extra tones as visible evidence. A primary family outside every modeled envelope can still produce **Outside model**. This changes evidence accounting, not detector tolerances or the theoretical geometry family.
+
+The independently verified Serbian 1 Dinar observation at 6468.8 / 6521.9 Hz with a recurring 14669.5 Hz secondary family is included as a verdict regression. It confirms that intact primary-frequency evidence survives an unmodeled upper resonance; it is not bundled as a population reference or used to widen the model.
+
 ## Pro 4.4 / Lite 3.2 — resolved acoustic evidence
 
 The shared detector now uses a low-sidelobe Blackman–Harris window. Neighboring peaks are retained only when separated by at least four inverse-record-duration units and a 6 dB spectral valley. The former 1.2% frequency-spacing suppression is removed. Zero padding does not imply extra physical resolution. These remain engineering detection heuristics, not calibrated error bars.

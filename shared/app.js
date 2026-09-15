@@ -101,6 +101,8 @@ function startRingBench({edition,target,build}){
       const evidence=[
         ["Persistent resonance tracks",fingerprint.tracks.length?fingerprint.tracks.map(t=>t.f.toFixed(1)+" Hz ["+t.frequencies.map(f=>f.toFixed(1)).join(" / ")+"]").join("; "):"None retained across every tap"],
         ["Pattern repeatability",fingerprint.repeatable?fingerprint.tracks.length+" track(s), each within 1% across all taps":"Not established"],
+        ["Primary resonance family",e.primary.family?e.primary.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · "+(e.primary.insideLowest?"within expected lowest-mode band":e.primary.assignment?.outside?"not represented by current mode envelopes":"mode identity unresolved"):"Unavailable"],
+        ["Secondary model coverage",e.primary.secondaryOutside.length?e.primary.secondaryOutside.map(a=>a.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · not represented by current model").join("; "):"No repeatable secondary family outside the current envelopes"],
         ["Peak tracking","Resolved neighbors are tracked separately; matching is limited by their spacing as well as the 1% cap."],
         ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved":"Earlier detector. Record again or reload exported WAVs to recover closely spaced peaks; the saved capture is unchanged."],
         ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required in Pro. Nearby components of one possible split family cannot count twice."],
@@ -127,7 +129,7 @@ function startRingBench({edition,target,build}){
           ["Harmonics",fingerprint.families.filter(f=>f.harmonicOf!==undefined).length?fingerprint.families.filter(f=>f.harmonicOf!==undefined).map(f=>Math.round(f.centre)+" Hz ≈ "+f.harmonicOrder+"×").join(" / "):"None identified"],
           ["Ratios",fingerprint.ratios.length?fingerprint.ratios.map(x=>x.observed.toFixed(3)).join(" / "):"Need another family"],
           ["Loudest",reading.strikes.map(s=>Math.round(s.f0)+" Hz").join(" / ")],
-          ["Theory",e.state==="anomalous"?"Outside modeled mode envelopes":e.fit.state==="compatible"?"Three-mode joint fit":estimate.f0===null?"Identity unresolved":"Provisional"]
+          ["Theory",e.diagnostic==="primary-consistent-secondary-unresolved"?"Primary family in band · secondary pattern unresolved":e.state==="anomalous"?"Primary family outside modeled envelopes":e.fit.state==="compatible"?"Three-mode joint fit":estimate.f0===null?"Identity unresolved":"Provisional"]
         ]);
       }
       if(pro)evidence.push(["Q · loudest resonance",reading.strikes.map(s=>Number.isFinite(s.q)?Math.round(s.q):"Unavailable").join(" / ")],["Input limit",Math.round(reading.usableHz)+" Hz · actual bandwidth unverified"]);

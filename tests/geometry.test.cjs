@@ -140,3 +140,17 @@ test('evidence labels distinguish missing modes, unresolved identity and an outs
   assert.equal(run('resultTitle({state:"inconclusive"},true)'),'Inconclusive');
   assert.equal(run('resultTitle(screenReading(makeReading(g.f.slice(0,3)),c,true),true)'),'Model consistent');
 });
+
+test('verified-dinar pattern keeps an in-band primary family despite an unexplained upper resonance',()=>{
+  run(`globalThis.dinar=flat.find(x=>x.n.startsWith('1 Dinar 1875'));globalThis.da=ALLOYS[dinar.a];globalThis.dc={name:dinar.n,key:dinar.a,mass:dinar.m,dia:dinar.d,rho:rhoOf(dinar.a),E:da.E,nu:da.nu};globalThis.dr=makeReading([6468.8,6521.9,14669.5]);globalThis.de=screenReading(dr,dc,true);globalThis.dl=screenReading(dr,dc,false);`);
+  assert.equal(run('de.primary.insideLowest'),true);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(de.primary.family.frequencies)')),[6468.8,6521.9]);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(de.primary.secondaryOutside.map(a=>a.family.centre))')),[14669.5]);
+  assert.equal(run('de.diagnostic'),'primary-consistent-secondary-unresolved');
+  assert.equal(run('resultTitle(de,true)'),'Primary resonance consistent');
+  assert.match(run('de.reason'),/primary acoustic evidence is intact/i);
+  assert.equal(run('dl.state'),'compatible');
+  assert.equal(run('dl.diagnostic'),'primary-consistent-secondary-unresolved');
+  assert.match(run('dl.reason'),/additional tones are shown as evidence/i);
+  assert.equal(run('resultTitle(dl,false)'),'Within model band');
+});
