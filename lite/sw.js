@@ -1,4 +1,4 @@
-const VERSION="2026-09-14.lite-3.2";
+const VERSION="2026-09-15.lite-3.3";
 const ROOT=new URL(self.registration.scope),PREFIX="ringbench-lite:"+encodeURIComponent(ROOT.pathname)+":",CACHE=PREFIX+VERSION;
 const FILES=["index.html","lite.js","manifest.json","icon.svg","apple-touch-icon.png","icon-512.png",...["coins.js","model.js","geometry.js","acoustics.js","references.js","app.js","styles.css"].map(n=>"../shared/"+n)];
 const ALLOWED=new Set(FILES.map(n=>new URL(n,ROOT).href));

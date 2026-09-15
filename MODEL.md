@@ -1,5 +1,11 @@
 # RingBench geometry family, revision 3
 
+## Primary resonance accounting — Pro 4.5 / Lite 3.3
+
+Primary and secondary evidence are now explicit. The primary acoustic family is the recurring family containing the strongest within-tap normalized track; it is selected from the measurement before theoretical assignment. Equal-strength ties resolve deterministically to the lower-frequency family. If the primary family intersects the modeled lowest-mode envelope but a secondary recurring family falls outside all modeled envelopes, Pro reports the primary resonance as consistent while leaving the full modal pattern unresolved. Lite retains its narrower lowest-mode screen and reports the primary as within band, with the secondary family displayed separately. Only a primary family outside all modeled envelopes drives the direct outside-model verdict in this case.
+
+This rule does not widen microphone, recurrence, geometry, material, or fitting tolerances. Relative level only identifies which recurring family is primary; it is not composition evidence. The secondary mismatch remains evidence of model incompleteness or an unexplained component, and positive Pro material consistency still requires the existing three-mode joint fit.
+
 ## Acoustic interpretation update — Pro 4.4 / Lite 3.2
 
 The forward geometry solver and all nuisance/fit tolerances are unchanged. This update improves measurement resolution and interpretation, not the modeled coin shape or an empirical authenticity calibration.
