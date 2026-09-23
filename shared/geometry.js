@@ -168,9 +168,10 @@ function acousticFingerprint(reading,c){
 }
 function primaryResonanceEvidence(fingerprint){
   if(!fingerprint?.families?.length||!fingerprint.envelope)return {family:null,assignment:null,insideLowest:false,secondaryOutside:[]};
-  // "Primary" is an acoustic observation: the recurring family containing
-  // the strongest within-tap normalized track. It is not chosen to fit theory.
-  const family=fingerprint.families.slice().sort((a,b)=>Math.max(...b.tracks.map(t=>t.relativeDb))-Math.max(...a.tracks.map(t=>t.relativeDb))||a.centre-b.centre)[0];
+  // The field candidate is the lowest retained, non-harmonic family, chosen
+  // before consulting the modeled band. The loudest line may be an upper mode.
+  const family=fingerprint.families.find(f=>f.harmonicOf===undefined)||null;
+  if(!family)return {family:null,assignment:null,insideLowest:false,secondaryOutside:[]};
   const assignment=fingerprint.envelope.assignments[family.index]||null;
   const insideLowest=!!assignment?.possible.some(e=>e.mode===0);
   const secondaryOutside=fingerprint.envelope.assignments.filter((a,i)=>i!==family.index&&a.outside);
@@ -241,40 +242,39 @@ function estimateFundamental(r,c){
 }
 
 function screenReading(r,c,requirePattern=false){
-  const estimate=estimateFundamental(r,c),band=geometryFamily(c),fingerprint=acousticFingerprint(r,c),position=bandPosition(estimate.f0,band),repeatable=estimate.repeatable,fit=fitGeometryFamily(r,c);
-  const primary=primaryResonanceEvidence(fingerprint);
-  let state=position,reason="",provisional=r.strikes.length<2;
-  if(!band.valid){state="inconclusive";reason="No physically admissible shape in the entered family. Review geometry assumptions.";}
-  else if(r.strikes.some(s=>s.offwindow)){state="inconclusive";reason="The recorded tone’s identity is uncertain.";}
-  else if(fingerprint.repeatable&&primary.insideLowest&&primary.secondaryOutside.length){
-    const main=primary.family.frequencies.map(f=>Math.round(f)).join(" / "),extra=primary.secondaryOutside.map(a=>a.family.frequencies.map(f=>Math.round(f)).join(" / ")).join(", ");
-    state=requirePattern?"evidence":"compatible";reason=requirePattern?"The primary repeatable resonance family ("+main+" Hz) agrees with the expected lowest-mode band. Additional repeatable resonance"+(primary.secondaryOutside.length===1?"":"s")+" at "+extra+" Hz are not represented by the current theoretical geometry family. The primary acoustic evidence is intact; the full modal pattern remains unresolved.":"The primary repeatable resonance family ("+main+" Hz) falls within the provisional lowest-mode band. Additional tones are shown as evidence but do not override Lite's primary-frequency screen.";
-  }
-  else if(fingerprint.repeatable&&primary.assignment?.outside){
-    const range=primary.family.frequencies.map(f=>Math.round(f)).join(" / ");
-    state="anomalous";reason="The primary repeatable resonance family ("+range+" Hz) is not represented by the current theoretical mode envelopes. This is a model mismatch, not a counterfeit determination.";
-  }
-  else if(estimate.ambiguous||estimate.f0===null){
-    if(fingerprint.repeatable&&fingerprint.tracks.length>=2){state="evidence";reason=fingerprint.families.length===1?"Repeatable close-frequency components form a possible split modal family. The individual peaks are retained, but the present model cannot label the parent mode.":fit.state==="compatible"?"Several repeatable resonances form a plausible plate-mode pattern, but their absolute mode identities remain ambiguous.":"A repeatable multi-tone acoustic pattern was retained, but it has no unique joint assignment within the current geometry and material assumptions.";}
-    else{state="inconclusive";reason=estimate.reason;}
-  }
-  else if(!provisional&&!repeatable){state="inconclusive";reason="The taps disagree. Repeat with the same support position.";}
-  else if(position==="anomalous"&&provisional){state="inconclusive";reason="Outside the model band on one tap. Repeat before interpreting it.";}
-  else if(requirePattern&&provisional){state="inconclusive";reason="One tap was retained. Pro needs repeated modal evidence before interpreting compatibility.";}
-  else if(requirePattern&&position!=="anomalous"&&fit.state!=="compatible"){state="evidence";reason=fingerprint.tracks.length===1?"One repeatable resonance is consistent with the provisional band, but Pro requires a coherent multi-mode pattern for positive theoretical compatibility.":"Repeatable resonances were retained, but fewer than three jointly fitted modes cannot establish theoretical material compatibility.";}
-  else reason=position==="compatible"?"The measured modal pattern and absolute frequencies fit the provisional geometry and material family.":position==="anomalous"?"The repeated tone lies well outside this model family. Fundamental identity may still be uncertain; investigate further.":"The fundamental candidate is near a band edge. Geometry or material assumptions could change the result.";
-  const matched=fit.matchedModeCount||0;
-  if(!requirePattern&&state==="compatible"&&!primary.secondaryOutside.length)reason="The estimated lowest-mode frequency falls within the provisional model band. Lite is a pitch screen, not a three-mode material assessment.";
-  const diagnostic=fingerprint.repeatable&&primary.insideLowest&&primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":state==="anomalous"?"primary-outside-model":state==="compatible"?"model-consistent":state==="evidence"?(matched===2||fit.state==="insufficient"?"insufficient-modes":"model-unresolved"):"inconclusive";
-  if(requirePattern&&diagnostic==="insufficient-modes")reason=fingerprint.tracks.length+" repeatable tone(s) retained. "+(matched?"The best supported joint fit explains "+matched+" distinct modeled modes; Pro requires three. Unassigned tones remain unexplained.":"Fewer than three independent modes are established; Pro cannot assess positive model consistency.")+" This is insufficient evidence, not a failed coin test.";
-  return {state,reason,diagnostic,primary,band,repeatable,provisional,estimate,fingerprint,fit};
+  const estimate=estimateFundamental(r,c),band=geometryFamily(c),fingerprint=acousticFingerprint(r,c),repeatable=estimate.repeatable,fit=fitGeometryFamily(r,c);
+  const primary=primaryResonanceEvidence(fingerprint),fieldPosition=bandPosition(primary.family?.centre,band);
+  let state="inconclusive",reason="",diagnostic="inconclusive";
+  const provisional=r.strikes.length<2,matched=fit.matchedModeCount||0;
+  if(!band.valid)reason="No physically admissible shape in the entered family. Review geometry assumptions.";
+  else if(r.strikes.some(s=>s.offwindow))reason="The recorded tone’s identity is uncertain. Try another strike with the same support.";
+  else if(provisional){
+    if(!requirePattern&&fingerprint.families.filter(f=>f.harmonicOf===undefined).length===1&&fieldPosition==="compatible"&&primary.insideLowest){
+      state="compatible";diagnostic="primary-band-provisional";reason="One measured resonance falls within the provisional lowest-mode band. Repeat the tap before relying on this acoustic screen.";
+    }else reason="One tap cannot establish a repeatable lowest resonance. Record another strike with the same support.";
+  }else if(!fingerprint.repeatable||!primary.family)reason="No stable resonance was retained across all taps. Repeat with the same support and strike position.";
+  else if(fieldPosition==="compatible"&&primary.insideLowest){
+    const hz=Math.round(primary.family.centre),extra=primary.secondaryOutside.map(a=>Math.round(a.family.centre)+" Hz").join(", ");
+    if(requirePattern&&fit.state==="compatible"&&!estimate.ambiguous&&estimate.f0!==null&&!primary.secondaryOutside.length){
+      state="compatible";diagnostic="model-consistent";reason="The lowest repeatable resonance ("+hz+" Hz) is in band and at least three distinct modes fit the current geometry and material assumptions. Check mass, diameter and metal independently.";
+    }else{
+      state=requirePattern?"evidence":"compatible";
+      diagnostic=primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":"primary-band-incomplete";
+      reason="The lowest repeatable resonance ("+hz+" Hz) falls within the provisional model band. "+(requirePattern?"The best joint fit explains "+matched+" distinct mode(s); three are required for a full Pro model fit. ":"")+(extra?"Higher recurring tones at "+extra+" are not explained by this model. ":"")+"This acoustic screen checks out; confirm mass and diameter and use an independent metal test, such as a Sigma, before relying on the coin.";
+    }
+  }else if(fieldPosition==="anomalous"){
+    if(primary.family.centre>band.high){state="evidence";diagnostic="lower-mode-unconfirmed";reason="The lowest frequency retained across taps ("+Math.round(primary.family.centre)+" Hz) is above the lowest-mode band. The lower mode may not have been excited or detected. Try another strike position, check the entered dimensions, and verify independently.";}
+    else{state="anomalous";diagnostic="primary-outside-model";reason="The lowest repeatable resonance ("+Math.round(primary.family.centre)+" Hz) is below the current model band. Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
+  }else{state="evidence";diagnostic="primary-band-edge";reason="The lowest repeatable resonance is near a model-band edge or has no clear lowest-mode assignment. Check dimensions and repeat the strike.";}
+  return {state,reason,diagnostic,primary,fieldPosition,band,repeatable,provisional,estimate,fingerprint,fit};
 }
 
 function resultTitle(e,pro){
-  if(e.state==="compatible")return pro?"Model consistent":"Within model band";
-  if(e.state==="anomalous")return "Outside model";
-  if(pro&&e.diagnostic==="primary-consistent-secondary-unresolved")return "Primary resonance consistent";
-  if(pro&&e.diagnostic==="insufficient-modes")return "Insufficient independent modes";
+  if(e.state==="compatible")return pro?"Model consistent":"Primary frequency checks out";
+  if(e.state==="anomalous")return "Primary frequency outside model";
+  if(e.diagnostic==="lower-mode-unconfirmed")return "Lower mode not established";
+  if(e.diagnostic==="primary-band-edge")return "Near model band edge";
+  if(pro&&(e.diagnostic==="primary-consistent-secondary-unresolved"||e.diagnostic==="primary-band-incomplete"))return "Primary frequency in band";
   if(pro&&e.state==="evidence")return "Model fit unresolved";
   return "Inconclusive";
 }

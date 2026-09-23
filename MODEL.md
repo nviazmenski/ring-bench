@@ -1,5 +1,11 @@
 # RingBench geometry family, revision 3
 
+## Field screen — Pro 4.6 / Lite 3.4
+
+The initial acoustic screen uses the lowest retained, non-harmonic family recurring across every accepted tap, independent of which peak is loudest and independent of upper-mode fit quality. This is an observed frequency candidate, not a proven fundamental: a still-lower coin mode might not be excited or detected. Two taps (Lite) or three (Pro) establish repetition under the existing 1% tracking rule; one Lite tap can display only a provisional result. A matching candidate inside the guarded lowest-mode band supports a limited field result. It cannot establish material or authenticity, so the user is directed to check physical measurements and metal independently.
+
+Pro retains its strict, simultaneous three-mode fit as an additional, more detailed model claim. A failed or unavailable upper-mode fit does not nullify an in-band lowest candidate. Conversely, when the lowest retained frequency is above the lowest-mode band, a missed lower resonance remains possible and the result requests another strike rather than rejecting the coin. A repeatable lowest family below the band remains an outside-model finding. The frequency envelopes, 3% joint-fit tolerance and detector thresholds are unchanged. The older sections below document historical versions rather than current verdict logic.
+
 ## Primary resonance accounting — Pro 4.5 / Lite 3.3
 
 Primary and secondary evidence are now explicit. The primary acoustic family is the recurring family containing the strongest within-tap normalized track; it is selected from the measurement before theoretical assignment. Equal-strength ties resolve deterministically to the lower-frequency family. If the primary family intersects the modeled lowest-mode envelope but a secondary recurring family falls outside all modeled envelopes, Pro reports the primary resonance as consistent while leaving the full modal pattern unresolved. Lite retains its narrower lowest-mode screen and reports the primary as within band, with the secondary family displayed separately. Only a primary family outside all modeled envelopes drives the direct outside-model verdict in this case.
