@@ -79,7 +79,7 @@ test('unverified user WAV regression: preserve four tones without manufacturing 
     assert.equal(e.fingerprint.tracks.length,4);
     assert.ok(e.fingerprint.tracks.every((t,i)=>Math.abs(t.f-[5210,5428,12130,12165][i])<3));
     assert.equal(e.fit.matchedModeCount,2);
-    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Insufficient independent modes':'Within model band');
+    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Primary frequency in band':'Primary frequency checks out');
     assert.equal(e.fingerprint.envelope.outside.length,0);
   }
 });
@@ -166,7 +166,7 @@ test("one pitch-only tap is useful; Lite completes on two and Pro completes on t
   for(const edition of ["lite","pro"]){
     const a=app(edition),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");
     assert.equal(await tap(a,f),true);assert.equal(a.run("ringBench.getState().reading.complete"),false);
-    assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,edition==="lite"?"Within model band · provisional":"Inconclusive");
+    assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,edition==="lite"?"Primary frequency checks out · provisional":"Inconclusive");
     await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),edition==="lite");
     if(edition==="pro"){await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),true);}
     assert.equal(a.run("ringBench.getState().reading.commonModes.length"),0);
@@ -231,7 +231,7 @@ test("both editions display and save a weaker fundamental beneath the loudest up
       assert.equal(await a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)"),true);
     }
     assert.ok(Math.abs(Number(a.e.frequency.textContent)-fs[0])<3);
-    assert.equal(a.e.frequencyLabel.textContent,"Estimated fundamental");
+    assert.equal(a.e.frequencyLabel.textContent,"Lowest repeatable resonance · mode provisional");
     assert.ok(Math.abs(a.run("ringBench.getState().reading.f0")-fs[2])<3);
     assert.match(a.e.dominantFrequency.textContent,/Loudest resonance:/);
     a.e.reftrusted.checked=true;a.e.refnote.value="Independent instrument verification";a.run("ringBench.render()");

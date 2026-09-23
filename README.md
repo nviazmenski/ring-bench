@@ -1,5 +1,11 @@
 # RingBench Lite and RingBench Pro — geometry-family edition
 
+## Pro 4.6 / Lite 3.4 — field-first acoustic screen
+
+The field candidate is now the lowest non-harmonic resonance family that repeats across taps, selected from measured frequencies before looking at the model. The loudest tone remains visible separately. Lite reports **Primary frequency checks out** when the candidate is safely within the provisional lowest-mode band, even if upper modes do not jointly fit. It explicitly recommends measuring mass and diameter and verifying metal independently (for example, with a Sigma). One tap stays provisional.
+
+Pro puts the lowest-frequency band result first and retains three jointly fitted independent modes as the additional condition for **Model consistent**. When upper modes fail that stricter test, Pro says **Primary frequency in band** and explains how many modes fit without treating a missing upper mode as coin failure. If even the lowest retained tone is above the lowest-mode band, both editions report that a lower tone may have been missed and prompt a different strike position. A repeatable tone below the band remains an outside-model finding. This does not widen tolerances or establish authenticity; the current geometry family and catalogue dimensions remain assumptions. Historic revision notes below describe earlier behavior.
+
 ## Pro 4.5 / Lite 3.3 — primary resonance accounting
 
 The verdict now identifies the primary acoustic family from the strongest recurring measured component before comparing it with theory. When that family falls in the expected lowest-mode band, an unexplained weaker family no longer turns the whole observation into **Outside model**. Pro reports **Primary resonance consistent** and keeps the secondary pattern unresolved; Lite reports **Within model band** and retains the extra tones as visible evidence. A primary family outside every modeled envelope can still produce **Outside model**. This changes evidence accounting, not detector tolerances or the theoretical geometry family.

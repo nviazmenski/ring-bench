@@ -79,9 +79,9 @@ function startRingBench({edition,target,build}){
     put("referenceDetail",usable?ref.note+" · "+ref.strikes.length+" taps. Comparison windows are provisional; one specimen does not establish a genuine-coin range.":"No verified recording supplied for this coin. Save a reference from an independently checked specimen.");
     put("storageStatus",storageOK?"References are saved on this device. Export to transfer between Lite and Pro.":"Device storage is unavailable. Export your reference before closing.");
     if(error){put("frequency","—");put("comparisonText","");return;}
-    const band=geometryFamily(c),analysisCoin=session?.spec||c,estimate=reading?estimateFundamental(reading,analysisCoin):null,fingerprint=reading?acousticFingerprint(reading,analysisCoin):null;
-    put("frequency",estimate?.f0?String(Math.round(estimate.f0)):fingerprint?.tracks.length?fingerprint.tracks.map(t=>Math.round(t.f)).join(" · "):"—");
-    put("frequencyLabel",!reading?"Estimated fundamental · waiting for tap":estimate.f0===null&&fingerprint.tracks.length?"Persistent resonances · identity unresolved":estimate.f0===null?"Fundamental unresolved":estimate.basis==="joint-pattern"?"Estimated fundamental":"Fundamental candidate · provisional");
+    const band=geometryFamily(c),analysisCoin=session?.spec||c,estimate=reading?estimateFundamental(reading,analysisCoin):null,fingerprint=reading?acousticFingerprint(reading,analysisCoin):null,primary=fingerprint?primaryResonanceEvidence(fingerprint):null;
+    put("frequency",fingerprint?.repeatable&&primary?.family?String(Math.round(primary.family.centre)):estimate?.f0?String(Math.round(estimate.f0)):fingerprint?.tracks.length?fingerprint.tracks.map(t=>Math.round(t.f)).join(" · "):"—");
+    put("frequencyLabel",!reading?"Lowest repeatable resonance · waiting for tap":fingerprint.repeatable&&primary?.family?"Lowest repeatable resonance · mode provisional":estimate.f0===null&&fingerprint.tracks.length?"Persistent resonances · identity unresolved":estimate.f0===null?"Lowest resonance unresolved":"Resonance candidate · one tap");
     put("dominantFrequency",reading?"Loudest resonance: "+Math.round(reading.f0)+" Hz":"");
     put("comparisonText",band.valid?"Lowest-mode model band "+Math.round(band.low)+"–"+Math.round(band.high)+" Hz":"No admissible geometry · review Model inputs");
     put("bandBasis","Model-based, not an empirical genuine-coin range. Near either edge: inconclusive.");
@@ -94,18 +94,18 @@ function startRingBench({edition,target,build}){
     for(const id of ["playRecorded","saveaudio","exporttest","saveSession"])if($(id))$(id).disabled=!reading||armed||busy||requesting;
     if(reading){
       const e=screenReading(reading,analysisCoin,pro);
-      const summary=e.reason+(e.provisional?" One tap only; repeat to confirm.":"")+(e.state==="compatible"?" Theoretical acoustic compatibility does not identify the material.":"");
+      const summary=e.reason;
       const verdict=resultTitle(e,pro)+(e.provisional&&e.state==="compatible"?" · provisional":"");
       put("resultTitle",verdict);put("resultSummary",summary);$("result").dataset.state=e.state;
       if(pro&&$("resultDesktop")){put("resultTitleDesktop",verdict);put("resultSummaryDesktop",summary);$("resultDesktop").hidden=false;$("resultDesktop").dataset.state=e.state;}
       const evidence=[
         ["Persistent resonance tracks",fingerprint.tracks.length?fingerprint.tracks.map(t=>t.f.toFixed(1)+" Hz ["+t.frequencies.map(f=>f.toFixed(1)).join(" / ")+"]").join("; "):"None retained across every tap"],
         ["Pattern repeatability",fingerprint.repeatable?fingerprint.tracks.length+" track(s), each within 1% across all taps":"Not established"],
-        ["Primary resonance family",e.primary.family?e.primary.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · "+(e.primary.insideLowest?"within expected lowest-mode band":e.primary.assignment?.outside?"not represented by current mode envelopes":"mode identity unresolved"):"Unavailable"],
+        ["Lowest recurring family",e.primary.family?e.primary.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · "+(e.fieldPosition==="compatible"&&e.primary.insideLowest?"within expected lowest-mode band":e.fieldPosition==="anomalous"?"outside expected lowest-mode band":"near band edge or mode identity unresolved"):"Unavailable"],
         ["Secondary model coverage",e.primary.secondaryOutside.length?e.primary.secondaryOutside.map(a=>a.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · not represented by current model").join("; "):"No repeatable secondary family outside the current envelopes"],
         ["Peak tracking","Resolved neighbors are tracked separately; matching is limited by their spacing as well as the 1% cap."],
         ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved":"Earlier detector. Record again or reload exported WAVs to recover closely spaced peaks; the saved capture is unchanged."],
-        ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required in Pro. Nearby components of one possible split family cannot count twice."],
+        ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required only for Pro's full model fit. Nearby components of one possible split family cannot count twice."],
         ["Other observed peaks",reading.strikes.map((s,i)=>{const others=s.peaks.filter(p=>!fingerprint.tracks.some(t=>t.observations.some(o=>o.tap===i&&o.f===p.f)));return others.length?"Tap "+(i+1)+": "+others.map(p=>p.f.toFixed(1)+" Hz").join(", "):null;}).filter(Boolean).join("; ")||"None beyond the recurring tracks"],
         ["Modal-family structure",fingerprint.families.length?fingerprint.families.map(f=>f.harmonicOf!==undefined?f.centre.toFixed(1)+" Hz · possible "+f.harmonicOrder+"× harmonic of "+fingerprint.families[f.harmonicOf].centre.toFixed(1)+" Hz":f.tracks.length>1?f.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · possible split "+(f.split*100).toFixed(2)+"%":f.centre.toFixed(1)+" Hz · separate track").join("; "):"Unavailable"],
         ["Recurring ratios",fingerprint.ratios.length?fingerprint.ratios.map(x=>x.observed.toFixed(4)+(x.joint?" · joint model support":" · no joint absolute assignment")).join("; "):"Need at least two separate modal families"],
@@ -129,7 +129,7 @@ function startRingBench({edition,target,build}){
           ["Harmonics",fingerprint.families.filter(f=>f.harmonicOf!==undefined).length?fingerprint.families.filter(f=>f.harmonicOf!==undefined).map(f=>Math.round(f.centre)+" Hz ≈ "+f.harmonicOrder+"×").join(" / "):"None identified"],
           ["Ratios",fingerprint.ratios.length?fingerprint.ratios.map(x=>x.observed.toFixed(3)).join(" / "):"Need another family"],
           ["Loudest",reading.strikes.map(s=>Math.round(s.f0)+" Hz").join(" / ")],
-          ["Theory",e.diagnostic==="primary-consistent-secondary-unresolved"?"Primary family in band · secondary pattern unresolved":e.state==="anomalous"?"Primary family outside modeled envelopes":e.fit.state==="compatible"?"Three-mode joint fit":estimate.f0===null?"Identity unresolved":"Provisional"]
+          ["Theory",e.diagnostic==="model-consistent"?"Lowest frequency in band · three-mode fit":e.diagnostic==="primary-consistent-secondary-unresolved"?"Lowest frequency in band · upper pattern unresolved":e.diagnostic==="primary-band-incomplete"?"Lowest frequency in band · full fit pending":e.diagnostic==="lower-mode-unconfirmed"?"Lower resonance not established":e.state==="anomalous"?"Lowest frequency below model band":"Provisional"]
         ]);
       }
       if(pro)evidence.push(["Q · loudest resonance",reading.strikes.map(s=>Number.isFinite(s.q)?Math.round(s.q):"Unavailable").join(" / ")],["Input limit",Math.round(reading.usableHz)+" Hz · actual bandwidth unverified"]);

@@ -91,11 +91,12 @@ test('worn rouble pair is repeatable evidence, not claimed splitting or compatib
   assert.equal(run('rf.ratios[0].joint'),null);
   assert.equal(run('screenReading(ruble,rc,true).state'),'evidence');
 });
-test('a repeatable split-like cluster stranded between modeled modes is anomalous',()=>{
+test('an upper-only repeatable cluster cannot rule out an unexcited lower mode',()=>{
   run(`globalThis.half=flat.find(x=>x.n==='Half Dollar 90% · 1873–1964');globalThis.ha=ALLOYS[half.a];globalThis.hc={name:half.n,key:half.a,mass:half.m,dia:half.d,rho:rhoOf(half.a),E:ha.E,nu:ha.nu,family:FAMILY_DEFAULTS};globalThis.badHalf=makeReading([6812,6928]);globalThis.he=modalEnvelopeEvidence(badHalf,hc);`);
   assert.equal(run('he.assignments.length'),1);
   assert.equal(run('he.outside.length'),1);
-  assert.equal(run('screenReading(badHalf,hc,true).state'),'anomalous');
+  assert.equal(run('screenReading(badHalf,hc,true).diagnostic'),'lower-mode-unconfirmed');
+  assert.equal(run('screenReading(badHalf,hc,false).state'),'evidence');
 });
 test('an exact strike harmonic is displayed but excluded from modal scoring',()=>{
   run(`globalThis.sov=flat.find(x=>x.n==='Sovereign');globalThis.sa=ALLOYS[sov.a];globalThis.sc={name:sov.n,key:sov.a,mass:8,dia:22,rho:rhoOf(sov.a),E:sa.E,nu:sa.nu,family:FAMILY_DEFAULTS};globalThis.sovReading=makeReading([5409,5577,10817,12522]);globalThis.sf=acousticFingerprint(sovReading,sc);`);
@@ -134,8 +135,8 @@ test('a close-frequency group never supplies two independent joint assignments',
 test('evidence labels distinguish missing modes, unresolved identity and an outside-model result',()=>{
   run(`globalThis.coinR=flat.find(x=>x.n.startsWith('1 Rouble 1886'));globalThis.coinRC={name:coinR.n,key:coinR.a,mass:coinR.m,dia:coinR.d,rho:rhoOf(coinR.a),E:ALLOYS[coinR.a].E,nu:ALLOYS[coinR.a].nu};globalThis.r4=makeReading([5210,5428,12130,12165]);globalThis.e4=screenReading(r4,coinRC,true);`);
   assert.equal(run('e4.fit.matchedModeCount'),2);
-  assert.equal(run('resultTitle(e4,true)'),'Insufficient independent modes');
-  assert.equal(run('resultTitle(screenReading(makeReading([1000]),coinRC,true),true)'),'Outside model');
+  assert.equal(run('resultTitle(e4,true)'),'Primary frequency in band');
+  assert.equal(run('resultTitle(screenReading(makeReading([1000]),coinRC,true),true)'),'Primary frequency outside model');
   assert.equal(run('resultTitle({state:"evidence",diagnostic:"model-unresolved"},true)'),'Model fit unresolved');
   assert.equal(run('resultTitle({state:"inconclusive"},true)'),'Inconclusive');
   assert.equal(run('resultTitle(screenReading(makeReading(g.f.slice(0,3)),c,true),true)'),'Model consistent');
@@ -147,10 +148,18 @@ test('verified-dinar pattern keeps an in-band primary family despite an unexplai
   assert.deepEqual(JSON.parse(run('JSON.stringify(de.primary.family.frequencies)')),[6468.8,6521.9]);
   assert.deepEqual(JSON.parse(run('JSON.stringify(de.primary.secondaryOutside.map(a=>a.family.centre))')),[14669.5]);
   assert.equal(run('de.diagnostic'),'primary-consistent-secondary-unresolved');
-  assert.equal(run('resultTitle(de,true)'),'Primary resonance consistent');
-  assert.match(run('de.reason'),/primary acoustic evidence is intact/i);
+  assert.equal(run('resultTitle(de,true)'),'Primary frequency in band');
+  assert.match(run('de.reason'),/lowest repeatable resonance/i);
   assert.equal(run('dl.state'),'compatible');
   assert.equal(run('dl.diagnostic'),'primary-consistent-secondary-unresolved');
-  assert.match(run('dl.reason'),/additional tones are shown as evidence/i);
-  assert.equal(run('resultTitle(dl,false)'),'Within model band');
+  assert.match(run('dl.reason'),/independent metal test/i);
+  assert.equal(run('resultTitle(dl,false)'),'Primary frequency checks out');
+});
+
+test('a loud upper tone cannot hide a lower repeatable in-band resonance',()=>{
+  run(`globalThis.loudDinar=makeReading([6468.8,14669.5]);loudDinar.strikes.forEach(s=>{s.f0=14669.5;s.peaks.forEach(p=>p.mag=p.f>10000?1:.1)});loudDinar.f0=14669.5;globalThis.loudLite=screenReading(loudDinar,dc,false);globalThis.loudPro=screenReading(loudDinar,dc,true);`);
+  assert.equal(run('loudLite.primary.family.centre'),6468.8);
+  assert.equal(run('resultTitle(loudLite,false)'),'Primary frequency checks out');
+  assert.equal(run('resultTitle(loudPro,true)'),'Primary frequency in band');
+  assert.equal(run('loudPro.fit.matchedModeCount')<3,true);
 });
