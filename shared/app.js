@@ -287,15 +287,25 @@ function startRingBench({edition,target,build}){
   function drawSpectrum(){
     const cv=$("spectrum");if(!cv||!cv.clientWidth)return;const g=cv.getContext("2d"),W=cv.clientWidth,H=cv.clientHeight||260,dpr=window.devicePixelRatio||1;cv.width=W*dpr;cv.height=H*dpr;g.scale(dpr,dpr);g.clearRect(0,0,W,H);
     const colors=getComputedStyle(document.body),color=colors.getPropertyValue("--goldhi");g.fillStyle=colors.getPropertyValue("--dim");g.font="12px system-ui";
-    if(!reading){put("spectrumScale","The chart will scale to the measured signal while retaining useful headroom.");g.fillText("Record a tap to see its measured spectrum.",14,30);return;}
-    const max=Math.max(...reading.mag),common=recurringPeaks(reading),peakMax=Math.max(reading.f0,...common.map(p=>p.f));
-    const visibleFloor=max*Math.pow(10,-50/20);let lastVisible=0;for(let i=0;i<reading.mag.length;i++)if(reading.mag[i]>=visibleFloor)lastVisible=i;
-    const signalMax=lastVisible*reading.binHz,rawLimit=Math.max(8000,peakMax*1.35,signalMax*1.08),step=rawLimit<=16000?2000:4000;
-    const limit=Math.min(reading.usableHz,Math.ceil(rawLimit/step)*step);put("spectrumScale","Display 0–"+(limit/1000).toFixed(limit%1000?1:0)+" kHz · scaled to the measured signal and recurring tones.");
-    g.strokeStyle=color;g.lineWidth=1;g.beginPath();
-    for(let px=0;px<W-45;px++){let peak=0;const from=Math.floor(px/(W-45)*limit/reading.binHz),to=Math.max(from+1,Math.ceil((px+1)/(W-45)*limit/reading.binHz));for(let j=from;j<to;j++)peak=Math.max(peak,reading.mag[j]||0);const db=Math.max(-70,20*Math.log10((peak+1e-30)/(max+1e-30))),y=18-db/70*(H-48);if(px)g.lineTo(35+px,y);else g.moveTo(35+px,y);}g.stroke();
+    const predicted=pro?modelExample(session?.spec||current())?.f.slice(0,3):null;
+    if(!reading&&!pro){put("spectrumScale","The chart will scale to the measured signal while retaining useful headroom.");g.fillText("Record a tap to see its measured spectrum.",14,30);return;}
+    const max=reading?Math.max(...reading.mag):0,common=reading?recurringPeaks(reading):[],peakMax=reading?Math.max(reading.f0||0,...common.map(p=>p.f)):0;
+    const visibleFloor=max*Math.pow(10,-50/20);let lastVisible=0;if(reading)for(let i=0;i<reading.mag.length;i++)if(reading.mag[i]>=visibleFloor)lastVisible=i;
+    const signalMax=reading?lastVisible*reading.binHz:0,rawLimit=Math.max(8000,peakMax*1.35,signalMax*1.08,predicted?.[2]*1.08||0),step=rawLimit<=16000?2000:4000;
+    const limit=Math.min(reading?.usableHz||24000,Math.ceil(rawLimit/step)*step);put("spectrumScale","Display 0–"+(limit/1000).toFixed(limit%1000?1:0)+" kHz · "+(reading?"scaled to the measured signal and recurring tones.":"model guides shown before recording."));
+    if(reading){g.strokeStyle=color;g.lineWidth=1;g.beginPath();
+    for(let px=0;px<W-45;px++){let peak=0;const from=Math.floor(px/(W-45)*limit/reading.binHz),to=Math.max(from+1,Math.ceil((px+1)/(W-45)*limit/reading.binHz));for(let j=from;j<to;j++)peak=Math.max(peak,reading.mag[j]||0);const db=Math.max(-70,20*Math.log10((peak+1e-30)/(max+1e-30))),y=18-db/70*(H-48);if(px)g.lineTo(35+px,y);else g.moveTo(35+px,y);}g.stroke();}
     for(let f=0;f<=limit;f+=step)g.fillText((f/1000)+"k",35+f/limit*(W-45),H-6);
-    const estimated=estimateFundamental(reading,session?.spec||current()).f0||reading.f0;g.strokeStyle="#8FD9A8";const x=35+estimated/limit*(W-45);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();g.fillText("Hz",W-24,H-6);
+    if(pro){
+      const labels=["Primary","Secondary","Tertiary"];
+      put("spectrumGuides",predicted?predicted.map((f,i)=>labels[i]+" model "+Math.round(f).toLocaleString()+" Hz"+(f>limit?" (above display range)":"")).join(" · ")+" · representative geometry; model ranges are in Model.":"No model guides available for these inputs.");
+      if(predicted)predicted.forEach((f,i)=>{if(f>limit)return;const x=35+f/limit*(W-45),label=labels[i]+" · "+Math.round(f).toLocaleString()+" Hz";
+        g.strokeStyle="#8FD9A8";g.lineWidth=1.5;g.setLineDash([5,4]);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();g.setLineDash([]);
+        g.font="12px system-ui";const labelX=Math.max(38,Math.min(x+5,W-g.measureText(label).width-10));g.fillStyle="#8FD9A8";g.fillText(label,labelX,24+i*19);
+      });
+    }
+    if(reading){const estimated=estimateFundamental(reading,session?.spec||current()).f0||reading.f0;if(Number.isFinite(estimated)&&estimated<=limit){g.strokeStyle=pro?"#91CFFF":"#8FD9A8";const x=35+estimated/limit*(W-45);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();if(pro){const label="Measured · "+Math.round(estimated).toLocaleString()+" Hz";g.fillStyle="#91CFFF";g.fillText(label,Math.max(38,Math.min(x+5,W-g.measureText(label).width-10)),H-36);}}}
+    g.fillStyle=colors.getPropertyValue("--dim");g.fillText("Hz",W-24,H-6);
   }
   async function openDB(){
     if(database)return database;
