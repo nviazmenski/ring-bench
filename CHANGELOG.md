@@ -2,6 +2,34 @@
 
 Newest first. Each section describes the release it names; behaviour in older sections may since have changed. Current behaviour is in [README.md](README.md) and [MODEL.md](MODEL.md). Git tags `lite-X.Y` and `pro-X.Y` mark each release.
 
+## Pro 4.11 / Lite 3.8 — experimental 3D solid model for the Morgan dollar
+
+- **Opt-in, Pro, Morgan dollar only.** Model → Plate model → *3D solid, Morgan cross-section (experimental)*. Lite, every other coin and Pro's default thin-plate model behave as before. Lite's build moves only because shared files changed.
+- **Why.** Thin-plate theory leaves out shear and rotary inertia. For a Morgan-thickness disc it overpredicts (2,0) by 2.1%, (3,0) by 4.4% and (4,0) by 7.0%, so predicted upper-mode ratios drift high as frequency rises.
+- **Solver** (`pro/solid.js`). Axisymmetric 3D elasticity, one circumferential order at a time: quadratic elements, banded Cholesky, subspace iteration. It matches the thin-plate limit within 0.05% and an independent spectral 3D solution within 10 ppm.
+- **Morgan cross-section.**
+  - Spherical die basin, 0–0.16 mm per side.
+  - Smeared portrait, legends and denticles: attached, with reduced in-plane stiffness.
+  - Solid rim at the caliper reading ±0.03 mm, or 2.35–2.85 mm unmeasured.
+  - Mass conserved.
+  - Forty prior samples, precomputed on a thickness × rim × ν grid in `pro/solid-tables.js` (124 KB). `npm run solid:tables` regenerates it and `npm run solid:check` (run in CI) verifies it.
+- **Scoring with this model.**
+  - A split tone pair is scored at its RMS centroid.
+  - Under a centre support (Pocket Pinger, fingertip, tongs) the (0,1) and (1,1) modes are shown, not scored, with envelopes extended 15% upward. A study of the support supports this: soft pads move (0,1) by up to 5% and n ≥ 2 by less than 0.001%.
+  - An early-window scan (first 100 ms, same peak, noise and persistence rules, only above 1.4× the lowest kept tone) finds fast-decaying upper modes that sit under the 42 dB threshold over the full ring.
+  - The construction screen keeps the thin-plate model.
+  - Tolerances, the three-mode requirement and verdict rules are unchanged.
+- **One real specimen.** A Morgan (1881-S, VF, 25.81 g, 37.7 mm, rim 2.40 mm) in a Pocket Pinger had read *Primary frequency in band, 2 modes*.
+  - With the solid model, the early scan finds (4,0) at 17.3 kHz in all three taps.
+  - (2,0), (3,0) and (4,0) fit within 0.16%, and the result is *Model consistent*.
+  - The thin-plate model with the same three tones fits only within 0.5–1% and leaves the mode identity ambiguous.
+  - Its recordings are now a test fixture. Its authenticity is not independently verified.
+- **Pro's Model tab** names the closest-fitting cross-sections (every fitted mode within 0.5%) and the modulus the lowest mode then implies. For this specimen it shows basin 0.01–0.10 mm and 82–87 GPa across the ±0.03 mm rim tolerance. At exactly 2.40 mm, the six cross-sections fitting both upper ratios within 0.5% give 0.04–0.07 mm and 82–84 GPa, against 82 GPa handbook. Descriptive only.
+- **Fixes.**
+  - The comparison coin no longer inherits this coin's rim reading. That had made most comparison coins inadmissible once a rim was entered.
+  - The joint-fit summary counts harmonic-candidate tones, instead of reporting "3 of 2 recurring peaks".
+- `research/solid/` holds the Python validation and research scripts.
+
 ## Pro 4.10 / Lite 3.7 — analysis floor
 
 - **Strike sounds no longer pose as the coin.** A striker that rings for about 100 ms at 200–300 Hz repeated across taps, became the lowest repeatable tone and failed genuine coins. The detector now ignores tones below a floor derived for each coin: the lowest band among the genuine coin and its modelled fakes, divided by the largest second-to-lowest mode ratio (1.72–1.87) and less the 2% edge guard. Anything hidden by the floor still shows its next mode below every band, so the floor cannot produce a PASS.

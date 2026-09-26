@@ -2,7 +2,7 @@
 
 ## Verdict rules — Pro 4.8 / Lite 3.5 (current)
 
-This section is the current verdict logic; Pro 4.9 / Lite 3.6 and Pro 4.10 / Lite 3.7 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
+This section is the current verdict logic; Pro 4.9 / Lite 3.6, Pro 4.10 / Lite 3.7 and Pro 4.11 / Lite 3.8 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged. Pro 4.11 adds an optional experimental model for the Morgan dollar ("3D solid model"); the rules here apply to it too, with the changes that section lists.
 
 **Tap count.** No result is given until the edition's full tap count is recorded: two for Lite, three for Pro. Before that, only measurements are shown.
 
@@ -15,6 +15,98 @@ This section is the current verdict logic; Pro 4.9 / Lite 3.6 and Pro 4.10 / Lit
 **Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits count only when no three-mode fit exists without one. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
 
 **Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
+
+## 3D solid model, Morgan dollar — Pro 4.11 (experimental)
+
+This section is current. It is opt-in: in Pro, for the Morgan dollar, **Model → Plate model → 3D solid, Morgan cross-section**. Lite, every other coin and Pro's default are unchanged.
+
+**Why.** The thin-plate (Kirchhoff) model leaves out transverse shear and rotary inertia. For a disc as thick as a Morgan (volume-equivalent thickness/radius 0.12) it overpredicts every mode, and more so for higher modes. A uniform disc at ν = 0.37 is overpredicted by:
+
+| Mode | (2,0) | (0,1) | (3,0) | (1,1) | (4,0) | (2,1) |
+|---|---|---|---|---|---|---|
+| Thin plate / 3D | +2.1% | +2.2% | +4.4% | +5.5% | +7.0% | +9.4% |
+
+The band absorbs the first column through its scale. The ratios do not: thin-plate (3,0)/(2,0) is 2.334 on a flat disc, the 3D value 2.284. This is the error that grows with frequency.
+
+**Solver** (`pro/solid.js`). The model is 3D linear elasticity on the coin's cross-section, with no plate assumptions. Displacements are u_r = U cos nθ, u_θ = V sin nθ and u_z = W cos nθ. Each circumferential order n is solved on the half cross-section 0 ≤ z ≤ h(r)/2. Mid-plane antisymmetry keeps only the flexural family. The axis conditions are exact: for n = 0, U = 0; for n = 1, W = 0 and V = −U; for n ≥ 2, all three are zero. The discretisation uses biquadratic 9-node elements and 4×4 Gauss points, solved by banded Cholesky and subspace iteration. Eigenvalues are reported as the plate-equivalent λ² in f = λ²·h̄/(2πa²)·√(E/(12(1−ν²)ρ)), so the rest of the app is unchanged.
+
+**Validation.**
+- **Thin limit.** At h/a = 0.005 all six tracked modes agree with the free Kirchhoff plate within 0.05%, for ν = 0.30 and 0.37.
+- **Independent 3D check.** A spectral Ritz solution of the same elasticity problem shares no code with the solver: Legendre polynomials in r², exact axis regularity. Uniform discs at h/a = 0.12 and 0.24 agree within 10 ppm across seven modes.
+- **Mesh.** The shipped mesh (30 elements per radius, three layers through the half thickness) agrees with a 60-element mesh within 4·10⁻⁵.
+- **Port.** The JavaScript solver and the Python prototype give identical eigenvalues to four decimals on the Morgan cross-section.
+
+The scripts are in `research/solid/`; `tests/solid.test.cjs` repeats the thin-limit and spectral checks.
+
+**Morgan cross-section.** The cross-section is per side and mirror-symmetric, in units of the radius:
+- **Field:** a spherical die basin of sagitta s, the field depth at the centre relative to the field edge.
+- **Portrait and legends:** smeared relief, on the central device out to 0.62–0.72 of the radius and on the legend band from 0.74 to 0.89.
+- **Denticles:** a smeared band.
+- **Rim:** solid, up to the rim thickness.
+
+Smeared layers have density φρ and out-of-plane stiffness φE, which keeps them attached so they create no spurious modes. Their in-plane stiffness is βE with β ≤ φ, because separate relief islands carry little in-plane stress. The field thickness is solved so the volume matches mass/density, so mass is conserved exactly.
+
+| Prior | Range | Reason |
+|---|---|---|
+| Die basin s, per side | 0–0.16 mm | Basined dies. One numismatic estimate of a Morgan's die radius is about 50 inches, a 0.11 mm sagitta over the field. Die lapping flattens it. The lower bound was widened from 0.05 to 0 mm after the first comparison with M06, which alone favours 0.04–0.07 mm. |
+| Rim width | 2.5–6% of radius | A narrow raised border. |
+| Denticle band | 3–7% of radius; height 50–90% of field depth; fill 40–60% | Separate teeth. |
+| Central relief | height 40–90% of field depth; fill 30–50% | Wear lowers the high points; this is the wear allowance. |
+| Legend band | height 50–90%; fill 20–40% | Letters and stars. |
+| Relief in-plane stiffness | 5–60% of its fill | Mostly islands. |
+| Through-thickness shear modulus | 0.9–1.3 × isotropic | Rolling texture. Silver's fibre textures bound it at 0.86 (⟨111⟩) to 1.55 (⟨100⟩). |
+| Rim thickness | caliper reading ± 0.03 mm, or 2.35–2.85 mm | Reported Morgan rims range from 2.4 to 2.8 mm, varying by mint and die. |
+
+**Tables** (`pro/solid-tables.js`, from `npm run solid:tables`). Forty Latin-hypercube samples of the priors are each solved on a grid:
+- volume-equivalent thickness/radius 0.100–0.145;
+- rim/volume-equivalent thickness 1.00–1.30;
+- ν 0.34–0.40.
+
+That is 3,360 cross-sections. Trilinear interpolation errs by at most 1.2·10⁻⁴; the family carries a 2·10⁻⁴ numerical margin, doubled as elsewhere. Inputs outside the grid make the family invalid with a stated reason; nothing is extrapolated. `npm run solid:check` recomputes entries and CI runs it. A measured rim gives three cross-sections per sample: the reading and ±0.03 mm. The prior gives its endpoints and the grid points between them.
+
+**Scoring, when this model is selected:**
+- **Split pairs.** The model is axisymmetric; relief and rolling texture split each (n,s) pair. To first order the split moves ω² symmetrically, so a family of close tracks (the existing 3% grouping) is scored at its RMS frequency. M06's (2,0) pair, 4246/4369 Hz (2.9% split), is scored at 4308 Hz. An orthotropic sheet splits only n = 1 and n = 2 at first order, which matches M06: its (3,0) and (4,0) are single.
+- **Centre support.** Under **Held during the test → At the centre**, the default, the (0,1) and (1,1) modes are not scored. Their envelopes extend 15% upward, so a support-shifted tone is still explained.
+  - *Why.* A Pocket Pinger holds the coin between silicone tips at the centre of both faces. Those modes move there; n ≥ 2 modes have zero displacement and slope there.
+  - *Modelled* (`research/solid/grip.py`, Morgan cross-section). Soft pads raise (0,1) by up to 5% and move n ≥ 2 by less than 0.001%.
+  - *Measured on M06.* (0,1) at 7.68 kHz decays with Q ≈ 1,000–1,300, against 3,000–17,000 for the n ≥ 2 modes.
+  - *Hard tongs.* A rigid clamp over 2.5 mm of radius replaces the n = 0, 1 spectrum and raises (2,0) by up to 3%; hard tongs are outside this model.
+  - *Other supports.* **Other or unknown** scores all six modes.
+- **Early-window scan.** Upper modes decay far faster than the lowest mode. On M06 the (4,0) mode at 17.3 kHz has τ ≈ 70–110 ms against about 1 s for (2,0). Over the full 0.6 s ring it sits 55–75 dB below the loudest tone, under the detector's 42 dB threshold, though only 15–40 dB down in the first 100 ms.
+  - This model's analysis also searches the first 100 ms, with the same peak rule, pre-strike noise check and persistence check.
+  - It searches only above 1.4× the lowest tone the standard detector kept: strike and holder sounds are loudest early, and every modelled second mode is at least 1.5× the lowest (1.62 in the solid tables, 1.54 across the thin-plate catalogue). It cannot change the lowest repeatable resonance.
+  - Found tones are marked in exports (`early: true`, strike `upperScan: "early-window-v1"`), and their levels are taken from the full-ring spectrum.
+  - The standard detector is unchanged.
+- **Fakes.** The construction screen keeps the thin-plate model; the solid tables cover only the genuine alloy's range. For a Morgan the thin-plate bias (about 2% on the lowest mode) is small next to the separations listed under "Counterfeit constructions".
+- The 3% fit tolerance, the three-mode requirement, harmonic candidates, guards and verdict rules are unchanged.
+
+**Result on one specimen.** M06: 1881-S, VF, 25.81 g, 37.7 mm, rim 2.40 mm, Pocket Pinger, three taps (`tests/fixtures/morgan-m06`). Authenticity has not been verified independently. The mass is 0.92 g under the 26.73 g standard, well beyond mint tolerance and ordinary wear.
+
+| | Thin plate, same inputs | 3D solid, rim 2.40 mm |
+|---|---|---|
+| Lowest-mode band | 4105–4812 Hz | 3807–4660 Hz |
+| Modes found | (2,0) pair, (3,0) | (2,0) pair, (3,0), (4,0) at 17.3 kHz |
+| Result | Primary frequency in band, 2 modes | Model consistent |
+| Fit residuals | — | (2,0) +0.07%, (3,0) −0.16%, (4,0) +0.09% |
+
+With the early scan but the thin-plate model, the three tones fit with 0.5–1% errors. Competing identities also fit within 3%, so the result stays "ambiguous". The solid model's fit is unambiguous even with all six modes scored.
+
+Of the 40 sampled cross-sections, 6 fit both upper ratios within 0.5%, all with a die basin of 0.04–0.07 mm. The lowest mode then implies an effective modulus of 82–84 GPa at the assumed density, against the 82 GPa handbook value. The measured (0,1) sits 0.7–1.1% above those cross-sections' free-disc prediction, consistent with the soft-pad calculation. Pro's Model tab reports a closest-fit summary: every fitted mode within 0.5%, across the ±0.03 mm rim tolerance. For M06 it shows 0.01–0.10 mm and 82–87 GPa. It is descriptive and not scored.
+
+**Limits.**
+- One unverified specimen. Nothing here is calibrated on real coins.
+- The 3% fit tolerance is wider than the family's own spread. For (3,0)/(2,0) that spread is 2.29–2.37 with a measured rim of 2.40 mm, and 2.29–2.42 under the rim prior. Upper modes add little discrimination until genuine specimens justify a tighter tolerance.
+- Axisymmetric: split pairs are not predicted.
+- The faces are mirror-symmetric, whereas the obverse and reverse differ.
+- Reeding and rim rounding are not modelled.
+- Relief is smeared and its priors are engineering estimates, not measurements of Morgan dies.
+- E and ν are handbook values for .900 silver.
+- The table covers only the Morgan and ν 0.34–0.40.
+
+**Next data that would sharpen it:**
+- Three taps and a rim reading for each of several Morgans verified independently.
+- A thickness through the cheek and eagle's breast, which bounds the relief.
+- Repeat taps with a second support, to confirm which modes the support moves.
 
 ## Analysis floor — Pro 4.10 / Lite 3.7 (current)
 

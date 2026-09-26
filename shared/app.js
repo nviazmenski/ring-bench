@@ -18,11 +18,11 @@ function startRingBench({edition,target,build}){
     const coin=flat[coinIndex],k=$("alloy")?.value||coin.a,a=ALLOYS[k];
     return {name:coin.n,key:k,mass:finite("mass",coin.m),dia:finite("dia",coin.d),rho:rhoOf(k),E:finite("emod",a.E),nu:finite("nu",a.nu),
       qmat:finite("qmat",2000),sup:$("grip")?.value||"tongs-rubber",hmm:0,
-      rimThickness:$("tsrc")?.value==="caliper"?finite("trim",0):0,
+      rimThickness:$("tsrc")?.value==="caliper"?finite("trim",0):0,plateModel:coin.solid&&$("plateModel")?.value==="solid"?coin.solid:"plate",support:$("support")?.value||"centre",
       family:{...FAMILY_DEFAULTS,widthMax:finite("widthMax",16)/100,ratioMax:finite("ratioMax",1.75),ePct:finite("ePct",5),rhoPct:finite("rhoPct",1),massPct:finite("massPct",1),diaPct:finite("diaPct",.5)}};
   };
   const snapshot=()=>{const c=current();return {coin:c.name,alloy:c.key,mass:c.mass,diameter:c.dia,E:c.E,nu:c.nu,materialQ:c.qmat,support:c.sup,
-    thicknessSource:$("tsrc")?.value||"mass",rimThickness:c.rimThickness||null,geometryModel:GEOMETRY_MODEL,family:c.family,
+    thicknessSource:$("tsrc")?.value||"mass",rimThickness:c.rimThickness||null,geometryModel:c.plateModel!=="plate"?geometryFamily(c).model:GEOMETRY_MODEL,plateModel:c.plateModel,support:c.support,upperScan:c.plateModel!=="plate",family:c.family,
     massMeasured:$("massMeasured")?.checked||false,diameterMeasured:$("diaMeasured")?.checked||false,thicknessMeasured:$("thicknessMeasured")?.checked||false,
     triggerDb:finite("thresh",18),skipMs:finite("skip",8),crestDb:finite("crest",26),cooldownMs:finite("cooldown",1500),wear:0};};
   function inputError(){
@@ -63,7 +63,8 @@ function startRingBench({edition,target,build}){
     invalidate("Tap gently about 15 cm from the microphone.");coinIndex=i;
     const coin=flat[i],a=ALLOYS[coin.a];
     const group=COINS.find(g=>g.items.includes(coin));$("region").value=group.region;populateCoins(group.region);$("coin").value=String(i);
-    for(const [id,v] of Object.entries({mass:coin.m,dia:coin.d,alloy:coin.a,emod:a.E,nu:a.nu,qmat:2000,grip:"tongs-rubber",tsrc:"mass",trim:"",trans:0,widthMax:16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,specimenId:""}))if($(id))$(id).value=v;
+    for(const [id,v] of Object.entries({mass:coin.m,dia:coin.d,alloy:coin.a,emod:a.E,nu:a.nu,qmat:2000,grip:"tongs-rubber",tsrc:"mass",trim:"",trans:0,widthMax:16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,specimenId:"",plateModel:"plate",support:"centre"}))if($(id))$(id).value=v;
+    if($("solidControls"))$("solidControls").hidden=!coin.solid;
     for(const id of ["massMeasured","diaMeasured","thicknessMeasured","reftrusted"])if($(id))$(id).checked=false;
     put("refnote","");if($("refnote"))$("refnote").value="";
     try{localStorage.setItem("ringbench."+edition+".coin",coin.n);}catch{}
@@ -93,7 +94,7 @@ function startRingBench({edition,target,build}){
     put("dominantFrequency",reading?"Loudest resonance: "+Math.round(reading.f0)+" Hz":"");
     put("comparisonText",band.valid?"Lowest-mode model band "+Math.round(band.low)+"–"+Math.round(band.high)+" Hz":"No admissible geometry · review Model inputs");
     put("bandBasis","Model-based, not an empirical genuine-coin range. Near either edge: "+(pro?"inconclusive.":"NO PASS."));
-    put("bandAssumptions","Rim width 3–"+(band.options.widthMax*100).toFixed(0)+"% of radius; rim/centre thickness 1–"+band.options.ratioMax+". Assumed uncertainty: modulus ±"+band.options.ePct+"%, density ±"+band.options.rhoPct+"%, mass ±"+band.options.massPct+"%, diameter ±"+band.options.diaPct+"%. Edge guard ±2%. Relief is not modelled; clad coins use an equivalent layered plate. Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(c)))+" Hz are treated as strike or support sound, never as the coin.");
+    if(band.source==="solid")put("bandAssumptions",solidAssumptions(band));else put("bandAssumptions","Rim width 3–"+(band.options.widthMax*100).toFixed(0)+"% of radius; rim/centre thickness 1–"+band.options.ratioMax+". Assumed uncertainty: modulus ±"+band.options.ePct+"%, density ±"+band.options.rhoPct+"%, mass ±"+band.options.massPct+"%, diameter ±"+band.options.diaPct+"%. Edge guard ±2%. Relief is not modelled; clad coins use an equivalent layered plate. Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(c)))+" Hz are treated as strike or support sound, never as the coin.");
     $("result").hidden=!reading;$("finish").hidden=!reading||reading.complete;$("finish").disabled=busy;
     const fingerprintSavable=pro&&fingerprint?.repeatable&&fingerprint.tracks.length>0;
     $("saveref").disabled=!reading||!reading.complete||!(estimate?.repeatable&&!estimate.ambiguous||fingerprintSavable)||reading.strikes.some(s=>s.offwindow)||!$("reftrusted").checked;
@@ -112,7 +113,7 @@ function startRingBench({edition,target,build}){
         ["Lowest recurring family",e.primary.family?e.primary.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · "+(e.fieldPosition==="compatible"&&e.primary.insideLowest?"within expected lowest-mode band":e.fieldPosition==="anomalous"?"outside expected lowest-mode band":"near band edge or mode identity unresolved"):"Unavailable"],
         ["Secondary model coverage",e.primary.secondaryOutside.length?e.primary.secondaryOutside.map(a=>a.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · not represented by current model").join("; "):"No repeatable secondary family outside the current envelopes"],
         ["Peak tracking","Resolved neighbors are tracked separately; matching is limited by their spacing as well as the 1% cap."],
-        ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved · analysis floor "+Math.round(reading.strikes[0].analysisFloorHz)+" Hz":"Earlier detector. Record again or reload exported WAVs to apply the current detector; the saved capture is unchanged."],
+        ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved · analysis floor "+Math.round(reading.strikes[0].analysisFloorHz)+" Hz"+(reading.strikes.some(s=>s.upperScan)?" · experimental early-window scan for fast-decaying upper modes"+(reading.strikes.some(s=>s.peaks.some(p=>p.early))?": "+reading.strikes.map((s,i)=>{const e=s.peaks.filter(p=>p.early);return e.length?"tap "+(i+1)+" "+e.map(p=>p.f.toFixed(1)).join(", ")+" Hz":null;}).filter(Boolean).join("; "):", none found"):""):"Earlier detector. Record again or reload exported WAVs to apply the current detector; the saved capture is unchanged."],
         ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required only for Pro's full model fit. Nearby components of one possible split family cannot count twice."],
         ["Other observed peaks",reading.strikes.map((s,i)=>{const others=s.peaks.filter(p=>!fingerprint.tracks.some(t=>t.observations.some(o=>o.tap===i&&o.f===p.f)));return others.length?"Tap "+(i+1)+": "+others.map(p=>p.f.toFixed(1)+" Hz").join(", "):null;}).filter(Boolean).join("; ")||"None beyond the recurring tracks"],
         ["Modal-family structure",fingerprint.families.length?fingerprint.families.map(f=>f.harmonicOf!==undefined?f.centre.toFixed(1)+" Hz · possible "+f.harmonicOrder+"× harmonic of "+fingerprint.families[f.harmonicOf].centre.toFixed(1)+" Hz":f.tracks.length>1?f.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · possible split "+(f.split*100).toFixed(2)+"%":f.centre.toFixed(1)+" Hz · separate track").join("; "):"Unavailable"],
@@ -221,25 +222,35 @@ function startRingBench({edition,target,build}){
     if(!family.valid)return null;
     const sorted=family.candidates.slice().sort((a,b)=>Math.min(...a.f)-Math.min(...b.f)),g=sorted[Math.floor(sorted.length/2)];
     const f=g.f.slice(),tau=f.map((v,i)=>base.Q[i]/(Math.PI*v));
-    return {...base,f,tau,h:family.h,geometry:g};
+    return {...base,f,tau,h:family.h,geometry:g,solid:family.source==="solid",scored:family.scored};
   }
   function renderModel(c){
     const decided=!!reading&&reading.strikes.length>=target,family=geometryFamily(c),nom=flat[coinIndex],fit=decided?fitGeometryFamily(reading,c):null,fingerprint=reading?acousticFingerprint(reading,c):null;
     put("catalogue",nom.m+" g · "+nom.d+" mm · "+ALLOYS[nom.a].n);put("catalogueNote",nom.note||"");
     put("modelFrequency",family.valid?Math.round(family.low)+"–"+Math.round(family.high)+" Hz":"No admissible geometry");
     put("modelThickness","Volume-equivalent thickness "+family.h.toFixed(3)+" mm");
-    put("geometrySource",family.candidates.length+" sampled shapes · "+(c.rimThickness?"rim thickness constrained by your entry":"mass conserved across centre/rim shapes"));
+    put("geometrySource",family.source==="solid"?family.candidates.length+" cross-sections ("+new Set(family.candidates.map(g=>g.sample)).size+" sampled Morgan profiles) · rim "+family.rims[0].toFixed(2)+"–"+family.rims[1].toFixed(2)+" mm "+(family.rimMeasured?"from your caliper reading":"catalogue prior")+(family.valid?"":" · "+family.reason):family.candidates.length+" sampled shapes · "+(c.rimThickness?"rim thickness constrained by your entry":"mass conserved across centre/rim shapes"));
+    if($("modelNote"))put("modelNote",family.source==="solid"?"Experimental 3D elastic solid: shear, rotary inertia, die basin, smeared relief, denticles and rim are modelled; the cross-section is averaged around the coin, so split pairs are not predicted. Mode ranges below use nominal material values; the main band also propagates the stated uncertainties.":"Experimental concentric centre/rim model. Relief, support-induced pitch shifts and layered construction are not represented. Mode ranges below use nominal material values; the main band also propagates the stated uncertainties.");
+    if($("familyBounds"))$("familyBounds").hidden=family.source==="solid";
+    put("solidNote",!flat[coinIndex].solid?"":c.plateModel==="plate"?"The experimental 3D model includes shear, rotary inertia, the die basin, relief and denticles. It changes Pro's band and fit for this coin only.":"Experimental: a 3D elastic solid with the Morgan cross-section. Split tones are scored at their centroid"+(c.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are shown but not scored":"")+". Fakes in the construction screen still use the thin-plate model.");
     table("modeRows",family.valid?MODES.map((m,i)=>{
       const fs=family.candidates.map(g=>g.f[i]),rs=family.candidates.map(g=>g.f[i]/Math.min(...g.f));
       return [m.id,Math.round(Math.min(...fs))+"–"+Math.round(Math.max(...fs))+" Hz",Math.min(...rs).toFixed(3)+"–"+Math.max(...rs).toFixed(3)];
     }):[]);
-    put("materialFit",!fit?"Record all "+target+" taps to fit their recurring peaks.":fit.state==="compatible"?"The selected material is theoretically compatible with "+fit.best.matches.length+" of "+fit.observed.length+" recurring peaks. Unassigned peaks remain unexplained.":fit.state==="insufficient"&&fingerprint?.ratios.length?fingerprint.tracks.length+" repeatable tracks retained; ratio "+fingerprint.ratios.map(x=>x.observed.toFixed(4)).join(" / ")+". At least three jointly fitted modal families are required for positive theoretical compatibility.":fit.state==="insufficient"?"Insufficient evidence: at least three distinct recurring modal families are needed.":"No joint match within the selected material and geometry assumptions.");
+    put("materialFit",!fit?"Record all "+target+" taps to fit their recurring peaks.":fit.state==="compatible"?"The selected material is theoretically compatible with "+fit.best.matches.length+" of "+(fit.observed.length+(fit.harmonicCount||0))+" recurring "+(fit.family.source==="solid"?"families":"peaks")+". Unassigned peaks remain unexplained.":fit.state==="insufficient"&&fingerprint?.ratios.length?fingerprint.tracks.length+" repeatable tracks retained; ratio "+fingerprint.ratios.map(x=>x.observed.toFixed(4)).join(" / ")+". At least three jointly fitted modal families are required for positive theoretical compatibility.":fit.state==="insufficient"?"Insufficient evidence: at least three distinct recurring modal families are needed.":"No joint match within the selected material and geometry assumptions.");
     const shapes=fit?.supported||[],unique=new Map(shapes.map(x=>[x.geometry.width+"|"+x.geometry.ratio,x.geometry]));
-    if(unique.size){
+    if(unique.size&&family.source==="solid"){
+      const gs=[...unique.values()],range=(f,d=2)=>{const v=gs.map(f);return Math.min(...v).toFixed(d)+"–"+Math.max(...v).toFixed(d);};
+      // Cross-sections whose three or more fitted modes all agree within 0.5%: their ratios pin the shape, and the
+      // lowest mode then implies an effective modulus at the assumed density (f scales with √E).
+      const close=(fit.supported||[]).filter(x=>x.matches.length>=3&&x.matches.every(m=>Math.abs(m.measured/(m.predicted*x.freeScale)-1)<=.005));
+      const E=close.map(x=>c.E*x.freeScale**2),closeText=close.length?" Closest fits (every fitted mode within 0.5%): die basin "+Math.min(...close.map(x=>x.geometry.params.s)).toFixed(2)+"–"+Math.max(...close.map(x=>x.geometry.params.s)).toFixed(2)+" mm per side; the lowest mode then implies an effective modulus of "+Math.min(...E).toFixed(0)+"–"+Math.max(...E).toFixed(0)+" GPa at the assumed density (entered "+c.E+" GPa). Descriptive only; not scored.":"";
+      put("geometryUncertainty",new Set(gs.map(g=>g.sample)).size+" of "+new Set(family.candidates.map(g=>g.sample)).size+" sampled Morgan cross-sections remain possible: die basin "+range(g=>g.params.s)+" mm per side, rim "+range(g=>g.rim)+" mm, through-thickness shear "+range(g=>g.params.g)+"× isotropic. This does not resolve cross-sections outside the sampled priors."+closeText);
+    }else if(unique.size){
       const gs=[...unique.values()];
       put("geometryUncertainty",unique.size+" sampled shapes remain possible; rim width "+(100*Math.min(...gs.map(g=>g.width))).toFixed(1)+"–"+(100*Math.max(...gs.map(g=>g.width))).toFixed(1)+"% of radius, rim/centre ratio "+Math.min(...gs.map(g=>g.ratio)).toFixed(2)+"–"+Math.max(...gs.map(g=>g.ratio)).toFixed(2)+". This does not resolve geometry outside the sampled family.");
     }else put("geometryUncertainty",fit?"Geometry remains unresolved. A missing joint fit can reflect the model, material, or mode assignment.":"Geometry uncertainty will be shown separately from material compatibility.");
-    if(fit&&fit.state!=="compatible"&&(fit.matchedModeCount||0)>0)put("materialFit",fit.observed.length+" recurring tone(s); the best supported assignment contains "+fit.matchedModeCount+" distinct modeled modes. Three are required. This is insufficient model evidence, not a failed coin test.");
+    if(fit&&fit.state!=="compatible"&&(fit.matchedModeCount||0)>0)put("materialFit",(fit.observed.length+(fit.harmonicCount||0))+" recurring tone(s); the best supported assignment contains "+fit.matchedModeCount+" distinct modeled modes. Three are required. This is insufficient model evidence, not a failed coin test.");
     const best=fit?.best;
     put("fitResidual",best?"Best candidate: "+best.matches.length+" peaks; frequency RMS residual "+(best.residual*100).toFixed(2)+"%, largest ratio residual "+(best.ratioResidual*100).toFixed(2)+"%. Common scale "+best.scale.toFixed(4)+".":"No joint peak assignment yet.");
     table("fitRows",best?best.matches.map(p=>[p.measured.toFixed(1),MODES[p.mode].id,(p.predicted*best.scale).toFixed(1),(p.measured/best.matches[0].measured).toFixed(4),(p.predicted/best.matches[0].predicted).toFixed(4)]):[]);
@@ -261,12 +272,17 @@ function startRingBench({edition,target,build}){
   function comparison(c){
     const index=finite("cmpCoin",coinIndex),nom=flat[index],same=index===coinIndex,k=$("cmpAlloy").value,a=ALLOYS[k],rho=rhoOf(k);
     const mass=same?(c.hmm>0?Math.PI*(c.dia/20)**2*c.hmm/10*rho:c.mass*rho/c.rho):nom.m*rho/rhoOf(nom.a);
-    return {...c,key:k,mass,dia:same?c.dia:nom.d,rho,E:a.E,nu:a.nu,hmm:same?c.hmm:0};
+    // Another coin keeps neither this coin's rim reading nor a cross-section model it does not have.
+    return {...c,key:k,mass,dia:same?c.dia:nom.d,rho,E:a.E,nu:a.nu,hmm:same?c.hmm:0,rimThickness:same?c.rimThickness:0,plateModel:same||nom.solid===c.plateModel?c.plateModel:"plate"};
   }
   function audio(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();ac.resume();return ac;}
   function playPCM(y,sr,at=0){const ctx=audio(),b=ctx.createBuffer(1,y.length,sr);b.copyToChannel(y,0);const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start(at||ctx.currentTime);playing.push(s);return y.length/sr;}
   // A model failure must not block capture: the detector then keeps its own minimum.
   function floorFor(spec){try{return analysisFloor(spec).hz;}catch{return 0;}}
+  function solidAssumptions(band){
+    const o=band.options,n=new Set(band.candidates.map(g=>g.sample)).size;
+    return "Experimental 3D elastic solid: "+n+" sampled Morgan cross-sections with a die basin of 0–0.16 mm per side, smeared relief and denticles, and a solid rim of "+band.rims[0].toFixed(2)+"–"+band.rims[1].toFixed(2)+" mm. Assumed uncertainty: modulus ±"+o.ePct+"%, density ±"+o.rhoPct+"%, mass ±"+o.massPct+"%, diameter ±"+o.diaPct+"%. Edge guard ±2%. "+(band.valid?"":band.reason+" ")+"Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(current())))+" Hz are treated as strike or support sound, never as the coin.";
+  }
   function newSession(source){invalidate();const spec=current();session={id:generation,spec,settings:{...snapshot(),analysisFloorHz:floorFor(spec)},reference:refs[key()]||null,source,strikes:[],files:new Set()};$("reftrusted").checked=false;$("refnote").value="";render();return generation;}
   const active=id=>session?.id===id&&generation===id;
   async function arm(){
@@ -353,7 +369,9 @@ function startRingBench({edition,target,build}){
   function drawSpectrum(){
     const cv=$("spectrum");if(!cv||!cv.clientWidth)return;const g=cv.getContext("2d"),W=cv.clientWidth,H=cv.clientHeight||260,dpr=window.devicePixelRatio||1;cv.width=W*dpr;cv.height=H*dpr;g.scale(dpr,dpr);g.clearRect(0,0,W,H);
     const colors=getComputedStyle(document.body),color=colors.getPropertyValue("--goldhi");g.fillStyle=colors.getPropertyValue("--dim");g.font="12px system-ui";
-    const predicted=pro?modelExample(session?.spec||current())?.f.slice(0,3):null;
+    // Guides: the first three thin-plate slots, or in the solid model the three lowest scored modes, named by mode.
+    const example=pro?modelExample(session?.spec||current()):null,guides=!example?null:example.solid?example.f.map((f,i)=>({f,label:MODES[i].id})).filter((x,i)=>example.scored[i]).sort((a,b)=>a.f-b.f).slice(0,3):example.f.slice(0,3).map((f,i)=>({f,label:["Primary","Secondary","Tertiary"][i]}));
+    const predicted=guides?.map(x=>x.f)||null;
     if(!reading&&!pro){put("spectrumScale","The chart will scale to the measured signal while retaining useful headroom.");g.fillText("Record a tap to see its measured spectrum.",14,30);return;}
     const max=reading?Math.max(...reading.mag):0,common=reading?recurringPeaks(reading):[],peakMax=reading?Math.max(reading.f0||0,...common.map(p=>p.f)):0;
     const visibleFloor=max*Math.pow(10,-50/20);let lastVisible=0;if(reading)for(let i=0;i<reading.mag.length;i++)if(reading.mag[i]>=visibleFloor)lastVisible=i;
@@ -364,8 +382,8 @@ function startRingBench({edition,target,build}){
     for(let px=0;px<W-45;px++){let peak=0;const from=Math.floor(px/(W-45)*limit/reading.binHz),to=Math.max(from+1,Math.ceil((px+1)/(W-45)*limit/reading.binHz));for(let j=from;j<to;j++)peak=Math.max(peak,reading.mag[j]||0);const db=Math.max(-70,20*Math.log10((peak+1e-30)/(max+1e-30))),y=18-db/70*(H-48);if(px)g.lineTo(35+px,y);else g.moveTo(35+px,y);}g.stroke();}
     for(let f=0;f<=limit;f+=step)g.fillText((f/1000)+"k",35+f/limit*(W-45),H-6);
     if(pro){
-      const labels=["Primary","Secondary","Tertiary"];
-      put("spectrumGuides",predicted?predicted.map((f,i)=>labels[i]+" model "+Math.round(f).toLocaleString()+" Hz"+(f>limit?" (above display range)":"")).join(" · ")+" · representative geometry; model ranges are in Model.":"No model guides available for these inputs.");
+      const labels=guides?.map(x=>x.label)||[];
+      put("spectrumGuides",predicted?predicted.map((f,i)=>labels[i]+" model "+Math.round(f).toLocaleString()+" Hz"+(f>limit?" (above display range)":"")).join(" · ")+" · representative "+(example.solid?"cross-section":"geometry")+"; model ranges are in Model.":"No model guides available for these inputs.");
       if(predicted)predicted.forEach((f,i)=>{if(f>limit)return;const x=35+f/limit*(W-45),label=labels[i]+" · "+Math.round(f).toLocaleString()+" Hz";
         g.strokeStyle="#8FD9A8";g.lineWidth=1.5;g.setLineDash([5,4]);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();g.setLineDash([]);
         g.font="12px system-ui";const labelX=Math.max(38,Math.min(x+5,W-g.measureText(label).width-10));g.fillStyle="#8FD9A8";g.fillText(label,labelX,24+i*19);
@@ -443,7 +461,7 @@ function startRingBench({edition,target,build}){
     };
     $("saveSession").onclick=async()=>{if(!reading)return;try{await dbRequest("readwrite",s=>s.put({id:crypto.randomUUID(),when:new Date().toISOString(),spec:session.spec,reading}));await listCaptures();notify("Recording and measurements saved in this device’s Library.");}catch(e){notify(e.message);}};
     $("loadSession").onclick=()=>{const saved=captures[+$("savedRecording").value];if(!saved)return;const idx=flat.findIndex(c=>c.n===saved.spec.name);if(idx<0)return;chooseCoin(idx);
-      const c=saved.spec,s=saved.reading.settings;for(const [id,v] of Object.entries({mass:c.mass,dia:c.dia,alloy:c.key,emod:c.E,nu:c.nu,qmat:c.qmat,grip:c.sup,tsrc:s.thicknessSource,trim:s.rimThickness||"",widthMax:(s.family?.widthMax??.16)*100,ratioMax:s.family?.ratioMax??1.75,ePct:s.family?.ePct??5,rhoPct:s.family?.rhoPct??1,massPct:s.family?.massPct??1,diaPct:s.family?.diaPct??.5}))if($(id))$(id).value=v;
+      const c=saved.spec,s=saved.reading.settings;for(const [id,v] of Object.entries({mass:c.mass,dia:c.dia,alloy:c.key,emod:c.E,nu:c.nu,qmat:c.qmat,grip:c.sup,tsrc:s.thicknessSource,trim:s.rimThickness||"",plateModel:s.plateModel&&s.plateModel!=="plate"?"solid":"plate",support:s.support||"centre",widthMax:(s.family?.widthMax??.16)*100,ratioMax:s.family?.ratioMax??1.75,ePct:s.family?.ePct??5,rhoPct:s.family?.rhoPct??1,massPct:s.family?.massPct??1,diaPct:s.family?.diaPct??.5}))if($(id))$(id).value=v;
       reading=saved.reading;reading.complete=true;session={id:generation,spec:current(),settings:s,reference:reading.referenceUsed,source:reading.source,strikes:reading.strikes,files:new Set()};options($("audioStrike"),reading.strikes.map((s,i)=>[i,"Tap "+(i+1)]));render();showTab("evidence");notify("Saved test loaded for review.");};
     $("deleteSession").onclick=async()=>{const saved=captures[+$("savedRecording").value];if(!saved||!window.confirm("Delete this saved recording from this device?"))return;try{await dbRequest("readwrite",s=>s.delete(saved.id));await listCaptures();notify("Saved test deleted. Exported copies are unaffected.");}catch(e){notify(e.message);}};
   }
