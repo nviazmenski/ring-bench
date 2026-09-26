@@ -6,6 +6,8 @@ function startRingBench({edition,target,build}){
   let ac=null,stream=null,node=null,sourceNode=null,mute=null,playing=[];
   let refs={},storageOK=true,ring=null,ringW=0,filled=0,strikeGate=null,capture=null,captureN=0,onset=0,coolUntil=0;
   let captures=[],database=null,specimens={},specimenStorageOK=true;
+  // Saved records this catalogue cannot use (e.g. a split coin entry) are kept and exported, never deleted.
+  let retainedRefs={},retainedSpecimens={};
   const put=(id,text)=>{if($(id))$(id).textContent=text;};
   const notify=text=>{put("notice",text);$("notice").hidden=!text;};
   const percent=n=>(n>=0?"+":"")+(n*100).toFixed(2)+"%";
@@ -30,18 +32,22 @@ function startRingBench({edition,target,build}){
     for(const [id,[lo,hi]] of Object.entries(ranges)){const el=$(id);if(el&&(!el.value.trim()||!Number.isFinite(+el.value)||+el.value<lo||+el.value>hi))return (el.labels?.[0]?.textContent||id)+" must be between "+lo+" and "+hi+".";}
     return "";
   }
-  function saveRefs(){try{localStorage.setItem(REFERENCE_KEY,JSON.stringify(refs));storageOK=true;return true;}catch{storageOK=false;return false;}}
-  function saveSpecimens(){try{localStorage.setItem(SPECIMEN_KEY,JSON.stringify(specimens));specimenStorageOK=true;return true;}catch{specimenStorageOK=false;return false;}}
+  function saveRefs(){try{localStorage.setItem(REFERENCE_KEY,JSON.stringify({...retainedRefs,...refs}));storageOK=true;return true;}catch{storageOK=false;return false;}}
+  function saveSpecimens(){try{localStorage.setItem(SPECIMEN_KEY,JSON.stringify({...retainedSpecimens,...specimens}));specimenStorageOK=true;return true;}catch{specimenStorageOK=false;return false;}}
   function loadRefs(){
     try{
-      const saved=JSON.parse(localStorage.getItem(REFERENCE_KEY)||"{}");
-      refs=Object.fromEntries(Object.entries(saved).filter(([,r])=>validReference(r)));
+      const saved=JSON.parse(localStorage.getItem(REFERENCE_KEY)||"{}");refs={};retainedRefs={};
+      for(const [k,raw] of Object.entries(saved)){const r=migrateSaved(raw),rk=validReference(r)?r.settings.coin+"|"+r.settings.alloy:null;if(rk&&!refs[rk])refs[rk]=r;else retainedRefs[k]=raw;}
       // Keep the installed Lite user's existing references, without changing or deleting the old key.
       const legacy=JSON.parse(localStorage.getItem("ringbench.lite.refs.v1")||"{}");
-      for(const r of Object.values(legacy))if(validReference(r)){const k=r.settings.coin+"|"+r.settings.alloy;if(!refs[k])refs[k]=r;}
+      for(const raw of Object.values(legacy)){const r=migrateSaved(raw);if(validReference(r)){const k=r.settings.coin+"|"+r.settings.alloy;if(!refs[k])refs[k]=r;}}
       saveRefs();
     }catch{storageOK=false;}
-    try{specimens=mergeSpecimens({},Object.values(JSON.parse(localStorage.getItem(SPECIMEN_KEY)||"{}")));}catch{specimenStorageOK=false;}
+    try{
+      const saved=JSON.parse(localStorage.getItem(SPECIMEN_KEY)||"{}"),migrated=Object.fromEntries(Object.entries(saved).map(([k,r])=>[k,migrateSaved(r)]));
+      specimens=mergeSpecimens({},Object.values(migrated));
+      retainedSpecimens=Object.fromEntries(Object.entries(saved).filter(([k])=>!(validSpecimen(migrated[k])&&specimens[specimenKey(migrated[k])]===migrated[k])));
+    }catch{specimenStorageOK=false;}
   }
   function stopPlayback(){playing.forEach(s=>{try{s.stop();}catch{}});playing=[];}
   function stopMic(){
@@ -77,14 +83,16 @@ function startRingBench({edition,target,build}){
     put("coinLabel",flat[coinIndex].n);
     put("referenceStatus","Geometry-family band · provisional"+(usable?" · specimen comparison available":""));
     put("referenceDetail",usable?ref.note+" · "+ref.strikes.length+" taps. Comparison windows are provisional; one specimen does not establish a genuine-coin range.":"No verified recording supplied for this coin. Save a reference from an independently checked specimen.");
-    put("storageStatus",storageOK?"References are saved on this device. Export to transfer between Lite and Pro.":"Device storage is unavailable. Export your reference before closing.");
+    const kept=Object.keys(retainedRefs).length+Object.keys(retainedSpecimens).length;
+    put("storageStatus",(storageOK?"References are saved on this device. Export to transfer between Lite and Pro.":"Device storage is unavailable. Export your reference before closing.")+(kept?" "+kept+" saved record(s) belong to catalogue entries that were split or changed; they are kept and included in exports but not used.":""));
     if(error){put("frequency","—");put("comparisonText","");return;}
     const band=geometryFamily(c),analysisCoin=session?.spec||c,estimate=reading?estimateFundamental(reading,analysisCoin):null,fingerprint=reading?acousticFingerprint(reading,analysisCoin):null,primary=fingerprint?primaryResonanceEvidence(fingerprint):null;
-    put("frequency",fingerprint?.repeatable&&primary?.family?String(Math.round(primary.family.centre)):estimate?.f0?String(Math.round(estimate.f0)):fingerprint?.tracks.length?fingerprint.tracks.map(t=>Math.round(t.f)).join(" · "):"—");
+    const lowest=reading?lowestRepeatableHz(reading,analysisCoin):null,decided=!!reading&&reading.strikes.length>=target;
+    put("frequency",lowest!==null?String(Math.round(lowest)):fingerprint?.tracks.length?fingerprint.tracks.map(t=>Math.round(t.f)).join(" · "):"—");
     put("frequencyLabel",!reading?"Lowest repeatable resonance · waiting for tap":fingerprint.repeatable&&primary?.family?"Lowest repeatable resonance · mode provisional":estimate.f0===null&&fingerprint.tracks.length?"Persistent resonances · identity unresolved":estimate.f0===null?"Lowest resonance unresolved":"Resonance candidate · one tap");
     put("dominantFrequency",reading?"Loudest resonance: "+Math.round(reading.f0)+" Hz":"");
     put("comparisonText",band.valid?"Lowest-mode model band "+Math.round(band.low)+"–"+Math.round(band.high)+" Hz":"No admissible geometry · review Model inputs");
-    put("bandBasis","Model-based, not an empirical genuine-coin range. Near either edge: inconclusive.");
+    put("bandBasis","Model-based, not an empirical genuine-coin range. Near either edge: "+(pro?"inconclusive.":"NO PASS."));
     put("bandAssumptions","Rim width 3–"+(band.options.widthMax*100).toFixed(0)+"% of radius; rim/centre thickness 1–"+band.options.ratioMax+". Assumed uncertainty: modulus ±"+band.options.ePct+"%, density ±"+band.options.rhoPct+"%, mass ±"+band.options.massPct+"%, diameter ±"+band.options.diaPct+"%. Edge guard ±2%. Relief and layered construction are not modelled.");
     $("result").hidden=!reading;$("finish").hidden=!reading||reading.complete;$("finish").disabled=busy;
     const fingerprintSavable=pro&&fingerprint?.repeatable&&fingerprint.tracks.length>0;
@@ -93,9 +101,9 @@ function startRingBench({edition,target,build}){
     renderSpecimens(c);
     for(const id of ["playRecorded","saveaudio","exporttest","saveSession"])if($(id))$(id).disabled=!reading||armed||busy||requesting;
     if(reading){
-      const e=screenReading(reading,analysisCoin,pro);
+      const e=screenReading(reading,analysisCoin,pro,target);
       const summary=e.reason;
-      const verdict=resultTitle(e,pro)+(e.provisional&&e.state==="compatible"?" · provisional":"");
+      const verdict=resultTitle(e,pro);
       put("resultTitle",verdict);put("resultSummary",summary);$("result").dataset.state=e.state;
       if(pro&&$("resultDesktop")){put("resultTitleDesktop",verdict);put("resultSummaryDesktop",summary);$("resultDesktop").hidden=false;$("resultDesktop").dataset.state=e.state;}
       const evidence=[
@@ -120,6 +128,10 @@ function startRingBench({edition,target,build}){
         ["Recurring peaks",recurringPeaks(reading).length+" distinct observed tones"],
         ["Single-specimen comparison",referenceState(referenceForReading(),reading.settings).usable?(referenceForReading().pitchRole==="estimated-fundamental"&&estimate.f0!==null?percent(estimate.f0/referenceForReading().f0-1)+" from saved fundamental":referenceForReading().pitchRole==="modal-fingerprint"?"Saved modal fingerprint available; population scoring awaits more specimens":"Legacy reference pitch; mode identity must be reviewed"):"No specimen comparison"]
       ];
+      // Until every tap is in, show measurements only: no row may hint at the outcome.
+      const pending="Shown when all "+target+" taps are recorded";
+      const interpretive=new Set(["Lowest recurring family","Secondary model coverage","Independent model assignments","Recurring ratios","Mode-envelope check","Shared mode envelopes","Mode identity","Single-specimen comparison"]);
+      if(!decided)evidence.forEach(row=>{if(interpretive.has(row[0]))row[1]=pending;});
       if(pro&&$("ringEvidenceEmpty")){
         $("ringEvidenceEmpty").hidden=true;
         table("ringEvidenceRows",[
@@ -129,12 +141,12 @@ function startRingBench({edition,target,build}){
           ["Harmonics",fingerprint.families.filter(f=>f.harmonicOf!==undefined).length?fingerprint.families.filter(f=>f.harmonicOf!==undefined).map(f=>Math.round(f.centre)+" Hz ≈ "+f.harmonicOrder+"×").join(" / "):"None identified"],
           ["Ratios",fingerprint.ratios.length?fingerprint.ratios.map(x=>x.observed.toFixed(3)).join(" / "):"Need another family"],
           ["Loudest",reading.strikes.map(s=>Math.round(s.f0)+" Hz").join(" / ")],
-          ["Theory",e.diagnostic==="model-consistent"?"Lowest frequency in band · three-mode fit":e.diagnostic==="primary-consistent-secondary-unresolved"?"Lowest frequency in band · upper pattern unresolved":e.diagnostic==="primary-band-incomplete"?"Lowest frequency in band · full fit pending":e.diagnostic==="lower-mode-unconfirmed"?"Lower resonance not established":e.state==="anomalous"?"Lowest frequency below model band":"Provisional"]
+          ["Theory",!decided?pending:e.diagnostic==="model-consistent"?"Lowest frequency in band · three-mode fit":e.diagnostic==="primary-consistent-secondary-unresolved"?"Lowest frequency in band · upper pattern unresolved":e.diagnostic==="primary-band-incomplete"?"Lowest frequency in band · full fit pending":e.diagnostic==="lower-mode-unconfirmed"?"Lower resonance not established":e.diagnostic==="primary-above-model"?"Lowest frequency above model band":e.state==="anomalous"?"Lowest frequency below model band":"Provisional"]
         ]);
       }
       if(pro)evidence.push(["Q · loudest resonance",reading.strikes.map(s=>Number.isFinite(s.q)?Math.round(s.q):"Unavailable").join(" / ")],["Input limit",Math.round(reading.usableHz)+" Hz · actual bandwidth unverified"]);
       table("evidenceRows",evidence);
-      if(pro){table("peakRows",reading.strikes.flatMap((s,i)=>s.peaks.map(p=>["Tap "+(i+1)+" · "+p.f.toFixed(1)+" Hz",estimate.f0!==null?(p.f/estimate.f0).toFixed(4):"—",p.snrDb.toFixed(1)+" dB"])));table("strikeRows",reading.strikes.map((s,i)=>["Tap "+(i+1)+" · loudest",s.f0.toFixed(1)+" Hz",s.decayFit.valid?"Q "+Math.round(s.q):"Q unavailable"]));}
+      if(pro){table("peakRows",reading.strikes.flatMap((s,i)=>s.peaks.map(p=>["Tap "+(i+1)+" · "+p.f.toFixed(1)+" Hz",decided&&estimate.f0!==null?(p.f/estimate.f0).toFixed(4):"—",p.snrDb.toFixed(1)+" dB"])));table("strikeRows",reading.strikes.map((s,i)=>["Tap "+(i+1)+" · loudest",s.f0.toFixed(1)+" Hz",s.decayFit.valid?"Q "+Math.round(s.q):"Q unavailable"]));}
     }else{table("evidenceRows",[]);if(pro){table("peakRows",[]);table("strikeRows",[]);table("ringEvidenceRows",[]);if($("ringEvidenceEmpty"))$("ringEvidenceEmpty").hidden=false;if($("resultDesktop")){put("resultTitleDesktop","Evidence");put("resultSummaryDesktop","Record a tap to assess compatibility and repeatability.");$("resultDesktop").hidden=false;delete $("resultDesktop").dataset.state;}}}
     if(pro)renderModel(c);
     requestAnimationFrame(drawSpectrum);
@@ -160,7 +172,7 @@ function startRingBench({edition,target,build}){
     return {...base,f,tau,h:family.h,geometry:g};
   }
   function renderModel(c){
-    const family=geometryFamily(c),nom=flat[coinIndex],fit=reading?.complete?fitGeometryFamily(reading,c):null,fingerprint=reading?acousticFingerprint(reading,c):null;
+    const decided=!!reading&&reading.strikes.length>=target,family=geometryFamily(c),nom=flat[coinIndex],fit=decided?fitGeometryFamily(reading,c):null,fingerprint=reading?acousticFingerprint(reading,c):null;
     put("catalogue",nom.m+" g · "+nom.d+" mm · "+ALLOYS[nom.a].n);put("catalogueNote",nom.note||"");
     put("modelFrequency",family.valid?Math.round(family.low)+"–"+Math.round(family.high)+" Hz":"No admissible geometry");
     put("modelThickness","Volume-equivalent thickness "+family.h.toFixed(3)+" mm");
@@ -169,7 +181,7 @@ function startRingBench({edition,target,build}){
       const fs=family.candidates.map(g=>g.f[i]),rs=family.candidates.map(g=>g.f[i]/Math.min(...g.f));
       return [m.id,Math.round(Math.min(...fs))+"–"+Math.round(Math.max(...fs))+" Hz",Math.min(...rs).toFixed(3)+"–"+Math.max(...rs).toFixed(3)];
     }):[]);
-    put("materialFit",!fit?"Finish a recording to fit its recurring peaks.":fit.state==="compatible"?"The selected material is theoretically compatible with "+fit.best.matches.length+" of "+fit.observed.length+" recurring peaks. Unassigned peaks remain unexplained.":fit.state==="insufficient"&&fingerprint?.ratios.length?fingerprint.tracks.length+" repeatable tracks retained; ratio "+fingerprint.ratios.map(x=>x.observed.toFixed(4)).join(" / ")+". At least three jointly fitted modal families are required for positive theoretical compatibility.":fit.state==="insufficient"?"Insufficient evidence: at least three distinct recurring modal families are needed.":"No joint match within the selected material and geometry assumptions.");
+    put("materialFit",!fit?"Record all "+target+" taps to fit their recurring peaks.":fit.state==="compatible"?"The selected material is theoretically compatible with "+fit.best.matches.length+" of "+fit.observed.length+" recurring peaks. Unassigned peaks remain unexplained.":fit.state==="insufficient"&&fingerprint?.ratios.length?fingerprint.tracks.length+" repeatable tracks retained; ratio "+fingerprint.ratios.map(x=>x.observed.toFixed(4)).join(" / ")+". At least three jointly fitted modal families are required for positive theoretical compatibility.":fit.state==="insufficient"?"Insufficient evidence: at least three distinct recurring modal families are needed.":"No joint match within the selected material and geometry assumptions.");
     const shapes=fit?.supported||[],unique=new Map(shapes.map(x=>[x.geometry.width+"|"+x.geometry.ratio,x.geometry]));
     if(unique.size){
       const gs=[...unique.values()];
@@ -182,12 +194,12 @@ function startRingBench({edition,target,build}){
     const b=comparison(c),bf=geometryFamily(b);
     put("comparisonModel",bf.valid?Math.round(bf.low)+"–"+Math.round(bf.high)+" Hz · comparison family; modelled mass "+b.mass.toFixed(4)+" g":"No admissible comparison geometry");
     const hypotheses=Object.entries(ALLOYS).map(([k,a])=>{
-      const other={...c,key:k,rho:rhoOf(k),E:a.E,nu:a.nu},f=geometryFamily(other),joint=reading?.complete?fitGeometryFamily(reading,other):null;
+      const other={...c,key:k,rho:rhoOf(k),E:a.E,nu:a.nu},f=geometryFamily(other),joint=decided?fitGeometryFamily(reading,other):null;
       return {name:a.n,joint,row:[a.n,f.valid?Math.round(f.low)+"–"+Math.round(f.high)+" Hz":"No shape",joint?.state==="compatible"?"Joint fit · "+joint.best.matches.length+" peaks":joint?.state==="insufficient"?"Insufficient peaks":joint?"No joint fit":"No recording"]};
     });
     table("hypothesisRows",hypotheses.map(h=>h.row));
     const surviving=hypotheses.filter(h=>h.joint?.state==="compatible");
-    put("materialAmbiguity",reading?.complete?(surviving.length>1?surviving.length+" listed material hypotheses fit. Composition is not identified.":surviving.length===1?"One listed material hypothesis fits; unlisted materials and geometries remain possible.":"No material identification from the current evidence."):"Material compatibility will be assessed across the listed hypotheses.");
+    put("materialAmbiguity",decided?(surviving.length>1?surviving.length+" listed material hypotheses fit. Composition is not identified.":surviving.length===1?"One listed material hypothesis fits; unlisted materials and geometries remain possible.":"No material identification from the current evidence."):"Material compatibility will be assessed across the listed hypotheses.");
     put("hypothesisGeometry","Same mass and diameter for each hypothesis; each assumed density changes the mass-conserving geometry family. A fit needs at least three recurring peaks and their ratios.");
     const au=finite("spotAu",0),ag=finite("spotAg",0),fractions=ALLOYS[c.key].f||{};
     put("meltValue",((fractions.Au&&au<=0)||(fractions.Ag&&ag<=0))?"Enter a spot price for each precious metal.":"$"+(c.mass/31.1034768*((fractions.Au||0)*au+(fractions.Ag||0)*ag)).toFixed(2)+" · entered prices");
@@ -243,7 +255,7 @@ function startRingBench({edition,target,build}){
   async function accept(x,sr,id,source,onset){
     if(!active(id)||busy||session.strikes.length>=target)return false;busy=true;render();
     try{
-      const result=await analyseInner(x,sr,session.spec,session.settings,source,onset,session.reference);if(!active(id))return false;
+      const result=await analyseInner(x,sr,session.spec,session.settings,source,onset);if(!active(id))return false;
       session.strikes.push(result);session.source=source;reading={...summarizeStrikes(session.strikes,target),referenceUsed:session.reference};
       options($("audioStrike"),reading.strikes.map((s,i)=>[i,"Tap "+(i+1)]));
       if(reading.complete){stopMic();put("status",target+" taps recorded. Result held for review.");}
@@ -281,7 +293,7 @@ function startRingBench({edition,target,build}){
   function exportTest(){
     if(!reading)return;const r=reading;
     json({format:"ringbench-test",version:5,edition,build,detector:DETECTOR_VERSION,model:GEOMETRY_MODEL,settings:r.settings,source:r.source,reference:r.referenceUsed,
-      medianHz:r.f0,spread:r.spread,complete:r.complete,rules:RULES,captureRules:CAPTURE_RULES,evaluation:screenReading(r,session.spec,pro),acousticFingerprint:acousticFingerprint(r,session.spec),geometryFit:pro&&r.complete?fitGeometryFamily(r,session.spec):null,
+      medianHz:r.f0,spread:r.spread,complete:r.complete,rules:RULES,captureRules:CAPTURE_RULES,evaluation:screenReading(r,session.spec,pro,target),acousticFingerprint:acousticFingerprint(r,session.spec),geometryFit:pro&&r.strikes.length>=target?fitGeometryFamily(r,session.spec):null,
       strikes:r.strikes.map(({pcm,mag,...s},i)=>({...s,tap:i+1,audioSamples:pcm.length,mag:Array.from(mag)})),audioNote:"Export WAV separately for each tap; timestamps identify matching audio."},"ringbench-test-"+stamp()+".json");
   }
   function drawSpectrum(){
@@ -304,7 +316,8 @@ function startRingBench({edition,target,build}){
         g.font="12px system-ui";const labelX=Math.max(38,Math.min(x+5,W-g.measureText(label).width-10));g.fillStyle="#8FD9A8";g.fillText(label,labelX,24+i*19);
       });
     }
-    if(reading){const estimated=estimateFundamental(reading,session?.spec||current()).f0||reading.f0;if(Number.isFinite(estimated)&&estimated<=limit){g.strokeStyle=pro?"#91CFFF":"#8FD9A8";const x=35+estimated/limit*(W-45);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();if(pro){const label="Measured · "+Math.round(estimated).toLocaleString()+" Hz";g.fillStyle="#91CFFF";g.fillText(label,Math.max(38,Math.min(x+5,W-g.measureText(label).width-10)),H-36);}}}
+    // Mark the same lowest repeatable resonance as the headline; fall back to the loudest tone.
+    if(reading){const lowest=lowestRepeatableHz(reading,session?.spec||current()),estimated=lowest??reading.f0;if(Number.isFinite(estimated)&&estimated<=limit){g.strokeStyle=pro?"#91CFFF":"#8FD9A8";const x=35+estimated/limit*(W-45);g.beginPath();g.moveTo(x,12);g.lineTo(x,H-28);g.stroke();if(pro){const label=(lowest!==null?"Measured · ":"Loudest · ")+Math.round(estimated).toLocaleString()+" Hz";g.fillStyle="#91CFFF";g.fillText(label,Math.max(38,Math.min(x+5,W-g.measureText(label).width-10)),H-36);}}}
     g.fillStyle=colors.getPropertyValue("--dim");g.fillText("Hz",W-24,H-6);
   }
   async function openDB(){
@@ -333,14 +346,15 @@ function startRingBench({edition,target,build}){
     refs[key()]=r;const saved=saveRefs();reading.referenceUsed=r;render();notify(saved?"Reference saved on this device.":"Reference held in memory only. Export it before closing.");
   };
   $("exportref").onclick=()=>{if(validReference(refs[key()]))json(refs[key()],"ringbench-reference-"+stamp()+".json");else notify("No reference saved for this coin.");};
-  $("exportAllRefs").onclick=()=>json({format:"ringbench-reference-library",version:3,references:refs,specimens:Object.values(specimens)},"ringbench-references-"+stamp()+".json");
+  $("exportAllRefs").onclick=()=>json({format:"ringbench-reference-library",version:3,references:refs,specimens:Object.values(specimens),retained:{references:retainedRefs,specimens:retainedSpecimens}},"ringbench-references-"+stamp()+".json");
   $("clearref").onclick=()=>{if(refs[key()]&&window.confirm("Remove this coin’s reference from this device?")){delete refs[key()];saveRefs();render();notify("Reference removed from this device. Exported backups remain usable.");}};
   $("importref").onclick=()=>{$("refFile").value="";$("refFile").click();};
   $("refFile").onchange=async e=>{
     const file=e.target.files[0];if(!file)return;const id=generation;
-    try{if(file.size>2*1024*1024)throw Error("Use a reference file smaller than 2 MB.");const data=JSON.parse(await file.text());if(id!==generation)throw Error("Selection changed. Import the file again.");const items=importReferences(data),incoming=(Array.isArray(data.specimens)?data.specimens:[]).filter(validSpecimen);if(!items.length&&!incoming.length)throw Error("No usable references or specimens found in this file.");
+    try{if(file.size>2*1024*1024)throw Error("Use a reference file smaller than 2 MB.");const data=JSON.parse(await file.text());if(id!==generation)throw Error("Selection changed. Import the file again.");const items=importReferences(data),incoming=(Array.isArray(data.specimens)?data.specimens:[]).map(migrateSaved).filter(validSpecimen);if(!items.length&&!incoming.length)throw Error("No usable references or specimens found in this file.");
       if(!window.confirm("Import "+items.length+" reference(s) and "+incoming.length+" specimen record(s)? Matching IDs will be updated. Confirm you independently trust their provenance."))return;
-      invalidate("References imported. Start a new check.");items.forEach(r=>refs[r.settings.coin+"|"+r.settings.alloy]=r);specimens=mergeSpecimens(specimens,incoming);const saved=saveRefs(),savedSet=saveSpecimens();render();notify(saved&&savedSet?"References and specimen collection imported; duplicate captures were not counted twice.":"Imported into memory only. Export a backup before closing.");
+      invalidate("References imported. Start a new check.");items.forEach(r=>refs[r.settings.coin+"|"+r.settings.alloy]=r);specimens=mergeSpecimens(specimens,incoming);
+      if(data.retained&&typeof data.retained==="object"){Object.assign(retainedRefs,data.retained.references||{});Object.assign(retainedSpecimens,data.retained.specimens||{});}const saved=saveRefs(),savedSet=saveSpecimens();render();notify(saved&&savedSet?"References and specimen collection imported; duplicate captures were not counted twice.":"Imported into memory only. Export a backup before closing.");
     }catch(err){notify(err.message);}
   };
   options($("verificationMethod"),VERIFICATION_METHODS.map(v=>[v,v]));

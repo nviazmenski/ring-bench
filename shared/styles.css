@@ -100,7 +100,7 @@ footer a{margin:0 8px}
 @media(prefers-reduced-motion:no-preference){body{transition:background-color .2s,color .2s}}
 /* Compatibility and joint-fit evidence retain the instrument palette. */
 [data-state="compatible"]{border-color:#59826b}
-[data-state="anomalous"]{border-color:#b57556}
+[data-state="anomalous"],[data-state="no-pass"]{border-color:#b57556}
 [data-state="inconclusive"]{border-color:#9a844d}
 .table-scroll{overflow-x:auto}
 /* Pro uses a three-column instrument deck on tablets and laptops. */
@@ -113,8 +113,8 @@ body[data-edition="pro"] .spectrum-card{margin-top:0}
 .verdict-card[data-state="compatible"] h2,#result[data-state="compatible"] h2{color:#a8e6ba}
 .verdict-card[data-state="inconclusive"],#result[data-state="inconclusive"]{border-color:#d8a63c;border-left-width:5px;background:linear-gradient(135deg,rgba(156,110,25,.27),rgba(92,65,16,.16))}
 .verdict-card[data-state="inconclusive"] h2,#result[data-state="inconclusive"] h2{color:#f0ca70}
-.verdict-card[data-state="anomalous"],#result[data-state="anomalous"]{border-color:#d05c48;border-left-width:5px;background:linear-gradient(135deg,rgba(158,55,42,.28),rgba(91,32,25,.17))}
-.verdict-card[data-state="anomalous"] h2,#result[data-state="anomalous"] h2{color:#f09a88}
+.verdict-card[data-state="anomalous"],#result[data-state="anomalous"],.verdict-card[data-state="no-pass"],#result[data-state="no-pass"]{border-color:#d05c48;border-left-width:5px;background:linear-gradient(135deg,rgba(158,55,42,.28),rgba(91,32,25,.17))}
+.verdict-card[data-state="anomalous"] h2,#result[data-state="anomalous"] h2,.verdict-card[data-state="no-pass"] h2,#result[data-state="no-pass"] h2{color:#f09a88}
 .verdict-card[data-state="evidence"],#result[data-state="evidence"]{border-color:#d8a63c;border-left-width:5px;background:linear-gradient(135deg,rgba(156,110,25,.27),rgba(92,65,16,.16))}
 .verdict-card[data-state="evidence"] h2,#result[data-state="evidence"] h2{color:#f0ca70}
 @media(min-width:760px){

@@ -33,9 +33,6 @@ const MODES=[
  {id:"(2,1)", c:[ 0.000184, 0.058097,-0.622912,35.441748], centreNode:true },
 ];
 const lam2=(i,nu)=>{const c=MODES[i].c;return ((c[0]*nu+c[1])*nu+c[2])*nu+c[3];};
-/* ratios of each mode to the fundamental, at a given ν — these move with ν
-   too, and for gold they move by 6-8%, which a 10% match window will lose */
-const ratiosAt=nu=>MODES.map((m,i)=>lam2(i,nu)/lam2(0,nu));
 const SUPPORTS={
  "tongs-rubber":{n:"Rubber-tipped tongs, centre", node:9000, anti:500},
  "tongs-hard"  :{n:"Hard tongs, centre",          node:5000, anti:280},

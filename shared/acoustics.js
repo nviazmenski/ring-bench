@@ -92,38 +92,6 @@ function persistentTones(pk,body,sr,preSpec,preLength,impulsive=false){
   });
 }
 
-function matchModes(peaks,f0,nu,usableHz,tolerance=RULES.modeTolerance){
-  const ratios=ratiosAt(nu);
-  let states=new Map([[0,{matches:[],error:0}]]);
-  for(const peak of peaks){
-    if(Math.abs(peak.f/f0-1)<0.02||peak.f>usableHz) continue;
-    const next=new Map(states);
-    for(const [mask,state] of states){
-      for(let i=1;i<ratios.length;i++){
-        const bit=1<<(i-1),error=Math.abs(peak.f/f0/ratios[i]-1);
-        if((mask&bit)||error>tolerance||f0*ratios[i]>usableHz) continue;
-        const candidate={matches:state.matches.concat({mode:i,f:peak.f,ratio:peak.f/f0,error}),error:state.error+error};
-        const old=next.get(mask|bit);
-        if(!old||candidate.error<old.error) next.set(mask|bit,candidate);
-      }
-    }
-    states=next;
-  }
-  return [...states.values()].sort((a,b)=>b.matches.length-a.matches.length||a.error-b.error)[0].matches;
-}
-
-function selectFundamental(pk,predicted,nu,usableHz,empiricalRatios=null){
-  let candidates=pk.filter(p=>p.f>=predicted*.55&&p.f<=predicted*1.75);
-  const offwindow=!candidates.length;
-  if(offwindow)candidates=[pk.reduce((a,b)=>a.mag>b.mag?a:b)];
-  const fits=candidates.map(p=>({f0:p.f,mag:p.mag,offwindow,matches:matchModes(pk,p.f,nu,usableHz)}));
-  const support=fit=>empiricalRatios?empiricalMatches({f0:fit.f0,peaks:pk},empiricalRatios).length:fit.matches.length;
-  fits.sort((a,b)=>support(b)-support(a)||
-    (a.matches.reduce((s,m)=>s+m.error,0)-b.matches.reduce((s,m)=>s+m.error,0))||
-    Math.abs(Math.log(a.f0/predicted))-Math.abs(Math.log(b.f0/predicted))||b.mag-a.mag);
-  return fits[0];
-}
-
 function rejectAmbient(pk,bodySpec,preSpec,bodyLength,preLength){
   const scale=bodyLength/Math.max(1,preLength);
   return pk.filter(p=>{
@@ -225,7 +193,7 @@ function summarizeStrikes(strikes,target=2){
   return {...representative,f0,spread,commonModes,strikes:strikes.slice(),complete:strikes.length===target};
 }
 
-async function analyseInner(x,sr,c,settings,source,onset,ref=null){
+async function analyseInner(x,sr,c,settings,source,onset){
   if(!Number.isFinite(sr)||sr<8000)throw new Error("Unsupported audio sample rate.");
   const quality=captureBody(x,sr,onset,settings.skipMs),body=quality.body;
   const usableHz=Math.min(22000,.45*sr,source?.trackRate ? .45*source.trackRate : Infinity);

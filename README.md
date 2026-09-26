@@ -1,5 +1,23 @@
 # RingBench Lite and RingBench Pro — geometry-family edition
 
+## Pro 4.8 / Lite 3.5 — complete tests only, firm Lite result
+
+- **No result before the last tap.** Lite needs two taps and Pro three. Until then both editions show measurements only: no verdict, band position or model fit. Keeping a reading early does not change that.
+- **Lite answers PASS or NO PASS.** PASS means the lowest repeatable pitch is safely inside the expected range for the catalogue coin. Everything else is NO PASS: below or above the range, too close to an edge, or taps that did not repeat. Lite uses catalogue weight, diameter and alloy only. PASS remains an acoustic screen; confirm weight, diameter and metal independently.
+- **Pro above the band.** When the lowest repeatable tone is above the lowest-mode band, Pro reports **Lower mode not established** only if the recurring tones fit the model as upper modes with the lowest mode missing. A lone high tone, a tone stranded between modeled modes, or a pattern that does not fit is **Primary frequency outside model**. This restores the stranded-tone exclusion that 4.6 dropped.
+- **Model consistent** also requires the three-mode fit to include the lowest repeatable resonance.
+- **Harmonic candidates.** A tone within 0.8% of 2–5× a lower tone is still excluded from scoring. The joint fit may count it as a plate mode above its parent tone only when no three-mode fit exists without it, and the verdict says so. On a flat silver plate the (1,1) mode sits about 4.01× above (2,0).
+- **Spectrum marker.** Pro's blue marker shows the same lowest repeatable resonance as the headline figure.
+- **Catalogue, 105 entries.** 2 Dinara is split into 1879/1897 (27 mm) and 1904–1915 (28 mm). British Crown through Sixpence are split by metal: sterling to 1919, .500 silver 1920–1946, cupronickel from 1947. Krugerrand and Sovereigns use 22k gold–copper; the silver-bearing preset is labelled as the American Gold Eagle alloy. The .9661 Au preset is removed; Yugoslav ducats remain .986.
+- **Saved data.** References and specimens recorded under a split or removed catalogue entry are kept and exported, never deleted. Krugerrand and Sovereign references saved under the old preset are relabelled.
+- Unused legacy detector and reference functions were removed. `RULES` keeps its fields for export compatibility.
+
+Pro 4.7 (September 24) added green model guides and a blue measured marker to the Pro spectrum; it was a presentation change.
+
+For hosting, build into `dist` (`node scripts/build.mjs lite dist` or `node scripts/build.mjs pro dist`); `.openai/hosting.json` publishes that directory.
+
+Every section below describes an earlier release and is historical.
+
 ## Pro 4.6 / Lite 3.4 — field-first acoustic screen
 
 The field candidate is now the lowest non-harmonic resonance family that repeats across taps, selected from measured frequencies before looking at the model. The loudest tone remains visible separately. Lite reports **Primary frequency checks out** when the candidate is safely within the provisional lowest-mode band, even if upper modes do not jointly fit. It explicitly recommends measuring mass and diameter and verifying metal independently (for example, with a Sigma). One tap stays provisional.
