@@ -6,10 +6,12 @@ This repository holds both editions. They share the detector, the catalogue and 
 
 | Edition | Current release | Taps | Result |
 |---|---|---|---|
-| **Lite** | 3.5 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
-| **Pro** | 4.8 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls |
+| **Lite** | 3.6 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
+| **Pro** | 4.9 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls |
 
-Neither edition gives any result until every required tap is recorded. [MODEL.md](MODEL.md) has the derivation, assumptions and limits; [CHANGELOG.md](CHANGELOG.md) has the release history.
+Neither edition gives any result until every required tap is recorded.
+
+**Fakes the pitch can rule out.** For gold and silver coins, both editions also list specific counterfeit constructions made to the coin's weight and diameter: the fakes that pass a scale and calipers. The list covers plated tungsten or molybdenum, a tungsten or molybdenum core in a precious-metal shell, underfine metal and common base metals. Before a test it shows which of them the pitch can separate from a genuine coin, and by how much. After a complete test it says which ones this coin's lowest repeatable tone rules out, and which remain possible, such as underfine metal or a thick shell over a tungsten core. It is modelled from handbook material ranges, not yet validated against real fakes. [MODEL.md](MODEL.md) has the derivation, assumptions and limits; [CHANGELOG.md](CHANGELOG.md) has the release history.
 
 ## Repository layout
 
@@ -18,6 +20,7 @@ shared/          detector, catalogue, solver, references and controller used by 
   coins.js         catalogue (coins and alloy presets)
   model.js         legacy uniform plate (regression limit and playback)
   geometry.js      stepped-rim Rayleigh–Ritz solver, bands, joint fit and verdicts
+  constructions.js counterfeit constructions: bands, separability and what a reading rules out
   acoustics.js     capture and peak detection
   references.js    saved references and specimen collection
   app.js           controller
@@ -29,7 +32,7 @@ retired-site/    the retirement page prepared for the old GitHub Pages address
 index.html       local launcher for both editions
 ```
 
-Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact; tags `lite-3.1` … `lite-3.5` and `pro-4.3` … `pro-4.8` mark every recovered release.
+Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact; tags `lite-3.1` … `lite-3.6` and `pro-4.3` … `pro-4.9` mark every release since.
 
 ## Development
 

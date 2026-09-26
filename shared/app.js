@@ -85,7 +85,7 @@ function startRingBench({edition,target,build}){
     put("referenceDetail",usable?ref.note+" · "+ref.strikes.length+" taps. Comparison windows are provisional; one specimen does not establish a genuine-coin range.":"No verified recording supplied for this coin. Save a reference from an independently checked specimen.");
     const kept=Object.keys(retainedRefs).length+Object.keys(retainedSpecimens).length;
     put("storageStatus",(storageOK?"References are saved on this device. Export to transfer between Lite and Pro.":"Device storage is unavailable. Export your reference before closing.")+(kept?" "+kept+" saved record(s) belong to catalogue entries that were split or changed; they are kept and included in exports but not used.":""));
-    if(error){put("frequency","—");put("comparisonText","");return;}
+    if(error){put("frequency","—");put("comparisonText","");if($("constructions"))$("constructions").hidden=true;return;}
     const band=geometryFamily(c),analysisCoin=session?.spec||c,estimate=reading?estimateFundamental(reading,analysisCoin):null,fingerprint=reading?acousticFingerprint(reading,analysisCoin):null,primary=fingerprint?primaryResonanceEvidence(fingerprint):null;
     const lowest=reading?lowestRepeatableHz(reading,analysisCoin):null,decided=!!reading&&reading.strikes.length>=target;
     put("frequency",lowest!==null?String(Math.round(lowest)):fingerprint?.tracks.length?fingerprint.tracks.map(t=>Math.round(t.f)).join(" · "):"—");
@@ -149,9 +149,60 @@ function startRingBench({edition,target,build}){
       if(pro){table("peakRows",reading.strikes.flatMap((s,i)=>s.peaks.map(p=>["Tap "+(i+1)+" · "+p.f.toFixed(1)+" Hz",decided&&estimate.f0!==null?(p.f/estimate.f0).toFixed(4):"—",p.snrDb.toFixed(1)+" dB"])));table("strikeRows",reading.strikes.map((s,i)=>["Tap "+(i+1)+" · loudest",s.f0.toFixed(1)+" Hz",s.decayFit.valid?"Q "+Math.round(s.q):"Q unavailable"]));}
     }else{table("evidenceRows",[]);if(pro){table("peakRows",[]);table("strikeRows",[]);table("ringEvidenceRows",[]);if($("ringEvidenceEmpty"))$("ringEvidenceEmpty").hidden=false;if($("resultDesktop")){put("resultTitleDesktop","Evidence");put("resultSummaryDesktop","Record a tap to assess compatibility and repeatability.");$("resultDesktop").hidden=false;delete $("resultDesktop").dataset.state;}}}
     if(pro)renderModel(c);
+    renderConstructions(analysisCoin,decided);
     requestAnimationFrame(drawSpectrum);
   }
   function table(id,rows){const body=$(id);if(!body)return;body.replaceChildren();rows.forEach(row=>{const tr=document.createElement("tr");row.forEach(text=>{const td=document.createElement("td");td.textContent=text;tr.appendChild(td);});body.appendChild(tr);});}
+  // Which fakes, made to this weight and diameter, the pitch can rule out. Before a complete
+  // reading this shows what the screen can separate; afterwards, what this coin's tone excludes.
+  function constructionText(r,screen,metal){
+    const hz=f=>String(Math.round(f)),pct=x=>Math.round(100*x)+"%",range=r.band.valid?hz(r.band.low)+"–"+hz(r.band.high)+" Hz":"";
+    const thick=r.band.valid&&Math.abs(r.thickness-1)>=.03?" At this weight it would be "+r.thickness.toFixed(2)+"× as thick as a genuine coin.":"";
+    const extra=(r.magnetic?" A magnet also catches it.":"")+thick;
+    if(r.separation.state==="no-shape"||r.match?.status==="no-shape")return {verdict:"thick",chip:"Calipers catch it",detail:"At this weight it would be "+r.thickness.toFixed(2)+"× as thick as a genuine coin, which is beyond the plate model."};
+    const m=r.match,f=screen.reading?.f;
+    if(!m){
+      const s=r.separation;
+      if(s.state==="separated")return {verdict:"clear",chip:"Pitch catches it",detail:"Would ring at "+range+", at least "+pct(s.margin)+" "+(s.direction==="higher"?"above":"below")+" the genuine range."+extra};
+      if(s.state==="thin-shells")return {verdict:"caution",chip:"Thin shells only",detail:"Pitch catches it while the "+metal+" shell is under "+pct(s.faceThickness)+" of the thickness ("+pct(s.faceMass)+" of the weight). Plated "+r.con.coreName+" rings at "+range+"; thicker shells overlap the genuine range."};
+      if(s.state==="overlaps")return {verdict:"caution",chip:"Pitch can’t tell",detail:(r.shell?"Even a thin "+metal+" shell overlaps the genuine range.":"Its range ("+range+") overlaps the genuine range.")+(r.con.caveat?" "+r.con.caveat:"")};
+      return {verdict:"pending",chip:"—",detail:"No admissible genuine geometry; review the model inputs."};
+    }
+    if(m.status==="unknown")return {verdict:"pending",chip:"Not assessed",detail:"No repeatable lowest tone, so this reading cannot rule it out."};
+    if(m.status==="ruled-out")return {verdict:"clear",chip:"Ruled out",detail:r.shell?"No "+metal+" shell over "+r.con.coreName+" rings at "+hz(f)+" Hz.":"It would ring at "+range+"; this coin’s lowest repeatable tone is "+hz(f)+" Hz."+extra};
+    if(r.shell){
+      const [from,to]=m.faceThickness,[mFrom,mTo]=m.faceMass;
+      if(m.status==="thick-shells")return {verdict:"caution",chip:"Thick shell not ruled out",detail:to<1?"Only a "+metal+" shell of "+pct(from)+"–"+pct(to)+" of the thickness ("+pct(mFrom)+"–"+pct(mTo)+" of the weight) rings at "+hz(f)+" Hz.":"Ruled out unless the "+metal+" shell is at least "+pct(from)+" of the thickness ("+pct(mFrom)+" of the weight)."};
+      return {verdict:"caution",chip:"Not ruled out",detail:"Plated "+r.con.coreName+(to>0?", or a "+metal+" shell up to "+pct(to)+" of the thickness ("+pct(mTo)+" of the weight),":"")+" rings at "+hz(f)+" Hz."};
+    }
+    const where=m.position==="upper-modes"?"The recurring tones fit it as upper modes with its lowest mode missed.":hz(f)+" Hz is "+(m.position==="compatible"?"inside":"near the edge of")+" its range ("+range+").";
+    return {verdict:"caution",chip:"Not ruled out",detail:where+(r.con.caveat?" "+r.con.caveat:"")+extra};
+  }
+  function renderConstructions(c,decided){
+    const section=$("constructions");if(!section)return;
+    const screen=screenConstructions(decided?reading:null,c,target),metal=ALLOYS[c.key]?.mt==="gold"?"gold":"silver";
+    section.hidden=!screen.rows.length;if(!screen.rows.length)return;
+    const list=$("constructionRows");list.replaceChildren();
+    const texts=screen.rows.map(r=>({r,...constructionText(r,screen,metal)}));
+    for(const {r,verdict,chip,detail} of texts){
+      const item=document.createElement("div"),head=document.createElement("div"),name=document.createElement("span"),tag=document.createElement("span"),note=document.createElement("p");
+      item.className="construction";item.dataset.verdict=verdict;head.className="construction-head";name.className="construction-name";tag.className="chip";
+      name.textContent=r.n;tag.textContent=chip;note.textContent=detail;
+      head.appendChild(name);head.appendChild(tag);item.appendChild(head);item.appendChild(note);list.appendChild(item);
+    }
+    const n=screen.rows.length,count=state=>screen.rows.filter(r=>r.separation.state===state).length;
+    let summary;
+    if(!screen.reading){
+      const sep=count("separated"),thin=screen.rows.filter(r=>r.separation.state==="thin-shells"),thick=count("no-shape");
+      summary="At this weight and diameter, pitch alone separates "+sep+" of "+n+" listed fakes from a genuine coin"+(thin.length?", plus a "+thin.map(r=>r.con.coreName).join(" or ")+" core while its "+metal+" shell is thin":"")+"."+(thick?" Calipers catch "+thick+" more: at this weight "+(thick>1?"they":"it")+" would be much thicker than a genuine coin.":"")+(decided?"":" Complete the test to see what this coin rules out.");
+    }else if(screen.reading.state!=="repeatable")summary="No repeatable lowest tone, so no fake is ruled out yet.";
+    else{
+      const out=screen.rows.filter(r=>r.match.status==="ruled-out"||r.match.status==="no-shape").length,open=texts.filter(x=>x.verdict==="caution").map(x=>x.r.n);
+      summary="This coin’s lowest repeatable tone ("+Math.round(screen.reading.f)+" Hz) rules out "+out+" of "+n+" listed fakes."+(open.length?" Not fully ruled out: "+open.join("; ")+".":"");
+    }
+    put("constructionSummary",summary);
+    put("constructionNote","Assumes a fake made to "+(pro?"the entered":"the catalogue")+" weight and diameter: the kind that passes a scale and calipers. Each fake’s band uses handbook material ranges in the same plate model as the genuine band. A copy struck in the correct metal rings like a genuine coin, and no pitch or metal test catches it. Confirm with an electromagnetic tester, such as a Sigma.");
+  }
   function referenceReading(){
     const e=estimateFundamental(reading,session.spec),fingerprint=acousticFingerprint(reading,session.spec);
     if(e.f0===null)return {...reading,f0:null,spread:null,pitchRole:"modal-fingerprint",fingerprint};
@@ -293,7 +344,7 @@ function startRingBench({edition,target,build}){
   function exportTest(){
     if(!reading)return;const r=reading;
     json({format:"ringbench-test",version:5,edition,build,detector:DETECTOR_VERSION,model:GEOMETRY_MODEL,settings:r.settings,source:r.source,reference:r.referenceUsed,
-      medianHz:r.f0,spread:r.spread,complete:r.complete,rules:RULES,captureRules:CAPTURE_RULES,evaluation:screenReading(r,session.spec,pro,target),acousticFingerprint:acousticFingerprint(r,session.spec),geometryFit:pro&&r.strikes.length>=target?fitGeometryFamily(r,session.spec):null,
+      medianHz:r.f0,spread:r.spread,complete:r.complete,rules:RULES,captureRules:CAPTURE_RULES,evaluation:screenReading(r,session.spec,pro,target),acousticFingerprint:acousticFingerprint(r,session.spec),geometryFit:pro&&r.strikes.length>=target?fitGeometryFamily(r,session.spec):null,constructionScreen:constructionExport(screenConstructions(r.strikes.length>=target?r:null,session.spec,target)),
       strikes:r.strikes.map(({pcm,mag,...s},i)=>({...s,tap:i+1,audioSamples:pcm.length,mag:Array.from(mag)})),audioNote:"Export WAV separately for each tap; timestamps identify matching audio."},"ringbench-test-"+stamp()+".json");
   }
   function drawSpectrum(){

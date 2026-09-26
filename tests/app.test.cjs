@@ -293,3 +293,20 @@ test("both editions display and save a weaker fundamental beneath the loudest up
     assert.ok(Math.abs(saved.f0-fs[0])<3);
   }
 });
+test("fake check shows what the pitch can separate, then what the coin rules out",async()=>{
+  for(const edition of ["lite","pro"]){
+    const a=app(edition),target=edition==="lite"?2:3,chips=()=>Object.fromEntries(a.e.constructionRows.children.map(x=>[x.children[0].children[0].textContent,x.children[0].children[1].textContent]));
+    a.run('ringBench.chooseCoin(flat.findIndex(x=>x.n==="Sovereign"))');
+    assert.equal(a.e.constructions.hidden,false);assert.equal(a.e.constructionRows.children.length,5);
+    assert.match(a.e.constructionSummary.textContent,/pitch alone separates 3 of 5 listed fakes.*tungsten core while its gold shell is thin/);
+    assert.equal(chips()["Gold-plated tungsten"],"Pitch catches it");assert.equal(chips()["Underfine gold: 5 points less, balance copper"],"Pitch can’t tell");
+    assert.match(a.e.constructionNote.textContent,edition==="lite"?/the catalogue weight/:/the entered weight/);
+    const f=a.run("(b=>Math.sqrt(b.low*b.high))(geometryFamily(ringBench.current()))");a.run("ringBench.newSession({kind:'file'})");
+    for(let i=1;i<target;i++){await tap(a,f);assert.match(a.e.constructionSummary.textContent,/Complete the test/);assert.equal(chips()["Gold-plated tungsten"],"Pitch catches it");}
+    await tap(a,f);
+    assert.match(a.e.constructionSummary.textContent,/rules out 3 of 5 listed fakes/);
+    assert.equal(chips()["Gold-plated tungsten"],"Ruled out");assert.equal(chips()["Gold-plated brass"],"Ruled out");
+    assert.equal(chips()["Underfine gold: 5 points less, balance copper"],"Not ruled out");assert.equal(chips()["Tungsten core in a gold shell"],"Thick shell not ruled out");
+    a.run('ringBench.chooseCoin(flat.findIndex(x=>x.n.startsWith("Crown · cupronickel")))');assert.equal(a.e.constructions.hidden,true);
+  }
+});

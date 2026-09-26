@@ -1,4 +1,4 @@
-const EL={Au:19.30,Ag:10.49,Cu:8.96,Pt:21.45,Pd:12.02,Zn:7.14,Ni:8.90,Fe:7.87,Cr:7.19};
+const EL={Au:19.30,Ag:10.49,Cu:8.96,Pt:21.45,Pd:12.02,Zn:7.14,Ni:8.90,Fe:7.87,Cr:7.19,W:19.25,Mo:10.22,Al:2.70,Pb:11.34,Sn:7.29};
 const ALLOYS={
   au900cu:{n:".900 Au / .100 Cu — LMU, Imperial Russia",f:{Au:.900,Cu:.100},E:85,nu:.42,mt:"gold"},
   au986cu:{n:".986 Au / .014 Cu — ducat standard",      f:{Au:.986,Cu:.014},E:80,nu:.42,mt:"gold"},
@@ -17,19 +17,51 @@ const ALLOYS={
   ag750  :{n:".750 Ag / .250 Cu — Yugoslav 1932–38",    f:{Ag:.750,Cu:.250},E:88,nu:.37,mt:"silver"},
   ag500  :{n:".500 Ag / .500 Cu — RU billon, GB 1920–46",f:{Ag:.500,Cu:.500},E:96,nu:.36,mt:"silver"},
   ag500yu:{n:".500 Ag / Cu / Ni / Zn — Yugoslav 1931",  f:{Ag:.50,Cu:.40,Ni:.05,Zn:.05},E:100,nu:.36,mt:"silver"},
-  ag400  :{n:".400 Ag nominal — US 40% clad (laminate)",f:{Ag:.400,Cu:.600},E:98,nu:.36,mt:"silver"},
+  /* Clad presets are layered: .800 Ag faces on a .209 Ag core, 1/3 of the mass in the faces (US Mint). */
+  ag400  :{n:".400 Ag nominal — US 40% clad (laminate)",f:{Ag:.400,Cu:.600},mt:"silver",
+           layers:{face:"ag800",core:{f:{Ag:.209,Cu:.791},E:110,nu:.35},faceMass:.1910/.591}},
   cuni75 :{n:"cupronickel — 75 Cu / 25 Ni (UK 1947+)",  f:{Cu:.75,Ni:.25},E:145,nu:.33,mt:"base"},
   cuni70 :{n:"cupronickel — 70 Cu / 30 Ni",             f:{Cu:.70,Ni:.30},E:152,nu:.33,mt:"base"},
-  usclad :{n:"US clad — 91.67 Cu / 8.33 Ni (laminate)", f:{Cu:.9167,Ni:.0833},E:125,nu:.34,mt:"base"},
+  /* 75 Cu / 25 Ni faces on a pure copper core; the faces carry 1/3 of the mass (US Mint). */
+  usclad :{n:"US clad — 91.67 Cu / 8.33 Ni (laminate)", f:{Cu:.9167,Ni:.0833},mt:"base",layers:{face:"cuni75",core:"copper",faceMass:1/3}},
   nickel :{n:"nickel — pure",                           f:{Ni:1.0},E:200,nu:.31,mt:"base",mag:2},
-  steel  :{n:"steel — mild / low carbon",               f:{Fe:1.0},rho:7.85,E:200,nu:.29,mt:"base",mag:2},
+  steel  :{n:"steel — mild / low carbon",               f:{Fe:1.0},rhoRange:[7.80,7.90],ERange:[190,210],nu:.29,mt:"base",mag:2},
   ss430  :{n:"stainless 430 — ferritic",                f:{Fe:.83,Cr:.17},rho:7.70,E:200,nu:.29,mt:"base",mag:2},
   ss304  :{n:"stainless 304 — austenitic",              f:{Fe:.74,Cr:.18,Ni:.08},rho:8.00,E:193,nu:.29,mt:"base",mag:1},
-  brass  :{n:"brass — 65 Cu / 35 Zn",                   f:{Cu:.65,Zn:.35},E:100,nu:.35,mt:"base"},
+  brass  :{n:"brass — Cu–Zn, 60–85% Cu",                f:{Cu:.65,Zn:.35},rhoRange:[8.39,8.75],ERange:[100,117],nu:.34,mt:"base"},
+  /* Counterfeit materials. Handbook ranges, deliberately wide: a fake's exact grade is unknown. */
+  copper :{n:"copper — commercially pure",              f:{Cu:1.0},rhoRange:[8.89,8.96],ERange:[110,130],nu:.34,mt:"base"},
+  nickelSilver:{n:"nickel silver — Cu–Ni–Zn",           f:{Cu:.65,Ni:.18,Zn:.17},rhoRange:[8.60,8.80],ERange:[117,132],nu:.33,mt:"base"},
+  zinc   :{n:"zinc die-casting alloy (Zamak)",          f:{Zn:.96,Al:.04},rhoRange:[6.60,6.70],ERange:[83,96],nu:.28,mt:"base"},
+  leadTin:{n:"lead–tin casting alloy",                  f:{Pb:.6,Sn:.4},rhoRange:[8.40,11.30],ERange:[14,45],nu:.42,mt:"base"},
+  molybdenum:{n:"molybdenum — density close to silver", f:{Mo:1.0},rhoRange:[10.10,10.28],ERange:[300,330],nu:.31,mt:"base"},
+  tungsten:{n:"tungsten or W–Ni–Fe heavy alloy — density close to gold",f:{W:1.0},rhoRange:[17.0,19.3],ERange:[300,411],nu:.28,mt:"base"},
 };
 const dens=f=>1/Object.keys(f).reduce((s,k)=>s+f[k]/EL[k],0);
 /* mixture rule unless the alloy carries a measured density */
 const rhoOf=k=>ALLOYS[k].rho||dens(ALLOYS[k].f);
+/* A handbook range becomes its midpoint plus a ± percentage that spans it. */
+const midRange=([lo,hi])=>({mid:(lo+hi)/2,pct:100*(hi-lo)/(hi+lo)});
+for(const a of Object.values(ALLOYS)){
+  if(a.rhoRange){const r=midRange(a.rhoRange);a.rho=r.mid;a.rhoPct=r.pct;}
+  if(a.ERange){const r=midRange(a.ERange);a.E=r.mid;a.ePct=r.pct;}
+}
+/* Symmetric three-layer plate: faces of total thickness fraction x around a core.
+   Bending stiffness weights each layer by its share of ∫z²dz, so thin faces carry
+   most of it: faces 1−(1−x)³, core (1−x)³. The equivalent homogeneous plate keeps
+   the laminate's mass per area, D11 = E/(1−ν²) and D12/D11 = ν. */
+function laminate(face,core,x){
+  const wf=1-(1-x)**3,wc=(1-x)**3,df=face.E/(1-face.nu**2),dc=core.E/(1-core.nu**2);
+  const d11=wf*df+wc*dc,nu=(wf*df*face.nu+wc*dc*core.nu)/d11;
+  return {rho:x*face.rho+(1-x)*core.rho,E:d11*(1-nu*nu),nu,stiffnessShare:{face:wf*df/d11,core:wc*dc/d11}};
+}
+const layerMaterial=l=>typeof l==="string"?{rho:rhoOf(l),E:ALLOYS[l].E,nu:ALLOYS[l].nu}:{rho:l.rho||dens(l.f),E:l.E,nu:l.nu};
+/* Face thickness fraction from the faces' share of the mass. */
+const faceThickness=(face,core,faceMass)=>faceMass/face.rho/(faceMass/face.rho+(1-faceMass)/core.rho);
+for(const a of Object.values(ALLOYS))if(a.layers){
+  const face=layerMaterial(a.layers.face),core=layerMaterial(a.layers.core),x=faceThickness(face,core,a.layers.faceMass),eq=laminate(face,core,x);
+  Object.assign(a,{rho:eq.rho,E:Math.round(eq.E*10)/10,nu:Math.round(eq.nu*1000)/1000,layers:{...a.layers,faceThickness:x}});
+}
 
 /* ───────── coin library, by issuer ───────── */
 const COINS=[

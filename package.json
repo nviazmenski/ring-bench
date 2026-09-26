@@ -6,7 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/app.test.cjs tests/geometry.test.cjs tests/release.test.cjs",
+    "test": "node --test tests/app.test.cjs tests/geometry.test.cjs tests/constructions.test.cjs tests/release.test.cjs",
     "build": "node scripts/build.mjs lite dist-lite && node scripts/build.mjs pro dist-pro",
     "stage:lite": "node scripts/build.mjs lite dist --hosting",
     "stage:pro": "node scripts/build.mjs pro dist --hosting",

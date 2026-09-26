@@ -2,7 +2,7 @@
 
 ## Verdict rules — Pro 4.8 / Lite 3.5 (current)
 
-This section is the current verdict logic. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
+This section is the current verdict logic; Pro 4.9 / Lite 3.6 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
 
 **Tap count.** No result is given until the edition's full tap count is recorded: two for Lite, three for Pro. Before that, only measurements are shown.
 
@@ -15,6 +15,71 @@ This section is the current verdict logic. Where any later section disagrees, in
 **Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits count only when no three-mode fit exists without one. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
 
 **Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
+
+## Counterfeit constructions — Pro 4.9 / Lite 3.6 (current)
+
+This section is current. It adds a second screen beside the verdict; the verdict rules above are unchanged.
+
+**Threat model.** Each construction is a fake made to the coin's mass and diameter: the kind that passes a scale and calipers. Lite uses catalogue mass and diameter, and Pro uses the entered values. The fake's thickness follows from its density (h̄ = m/(ρπa²)), and it is modelled with the same stepped-rim family, 2% edge guard, mass and diameter uncertainty and entered rim constraint as the genuine coin. Only the material changes.
+
+**Constructions listed.** Only gold and silver coins get constructions; base-metal and clad coins list none.
+
+| Coin metal | Construction | Material model |
+|---|---|---|
+| Gold | Gold-plated tungsten | Tungsten or W–Ni–Fe heavy alloy; plating is negligible |
+| Gold | Tungsten core in a gold shell | Laminate: genuine alloy faces on a tungsten core |
+| Gold | Underfine gold | 5 points less gold, balance copper; entered E and ν |
+| Gold | Gold-plated brass, copper | Base metal |
+| Silver | Silver-plated molybdenum | Molybdenum; density close to silver |
+| Silver | Molybdenum core in a silver shell | Laminate: genuine alloy faces on a molybdenum core |
+| Silver | Underfine silver | 5 points less silver, balance copper; entered E and ν |
+| Silver | Silver-plated brass, copper, nickel silver, zinc alloy, steel; lead–tin casting | Base metal |
+
+**Material ranges.** Fake materials use deliberately wide handbook ranges, because the grade of a fake is unknown. Each range becomes a midpoint and a ± percentage that spans it, and replaces the default ±5% modulus and ±1% density terms for that material.
+
+| Material | Density g/cm³ | E GPa | ν |
+|---|---|---|---|
+| Tungsten / W–Ni–Fe heavy alloy | 17.0–19.3 | 300–411 | 0.28 |
+| Molybdenum | 10.10–10.28 | 300–330 | 0.31 |
+| Copper | 8.89–8.96 | 110–130 | 0.34 |
+| Brass (60–85% Cu) | 8.39–8.75 | 100–117 | 0.34 |
+| Nickel silver | 8.60–8.80 | 117–132 | 0.33 |
+| Zinc die-casting alloy | 6.60–6.70 | 83–96 | 0.28 |
+| Lead–tin casting alloy | 8.40–11.30 | 14–45 | 0.42 |
+| Steel | 7.80–7.90 | 190–210 | 0.29 |
+
+These are typical handbook values, not measurements of real fakes. The brass preset now carries a measured density range; the earlier mixture rule gave 8.23 g/cm³, below real brass.
+
+**Separable by pitch.** A construction is separable when its model band and the genuine band do not overlap. Then no frequency that passes as genuine lies in or near the construction's band. The margin shown is the gap between the nearest band edges. A construction with no admissible shape (above the 0.25 local thickness/radius limit) is reported with its thickness relative to a genuine coin: at full weight it would be far thicker, which calipers catch.
+
+**Shells.** Shell bands fall steadily from the bare core to the genuine alloy as the shell thickens. Before a test, bisection finds the thickest shell whose band still clears the genuine band. It is reported as a fraction of thickness and of weight.
+
+**Against a reading.** After a complete test with a repeatable lowest family, each construction is judged by the same rules as Pro's screen:
+- It is ruled out when the lowest repeatable resonance is outside its guarded lowest-mode band.
+- A construction whose band lies below the reading stays possible only if the recurring tones fit it as upper modes with its lowest mode unobserved.
+- For shells, the fitting shell thicknesses form one interval, found by bisection on the lowest-mode band. The screen says which shell thicknesses remain possible.
+
+**Worked numbers** (catalogue dimensions, default assumptions):
+- Krugerrand: genuine 4000–4871 Hz; plated tungsten 7189–11586 Hz, at least 48% above. A tungsten core is separable while the gold shell is under 39% of the thickness. A full-weight brass or copper Krugerrand would be about twice as thick, beyond the model.
+- Morgan dollar: genuine 3925–4801 Hz; plated molybdenum 65% above, brass 21% above, copper 22% above.
+- Underfine gold and silver (5 points) overlap the genuine band for every coin tried. Fineness changes this small barely move the pitch.
+
+**Limits.**
+- A copy struck in the correct metal rings like a genuine coin; neither pitch nor an electromagnetic test catches it.
+- Shells are modelled as uniform faces over the whole disc. A solid gold rim, an inserted plug or an off-centre core is not represented.
+- Underfine gold keeps the entered modulus. Real Au–Cu moduli rise with copper, which would move the pitch slightly further.
+- The lead–tin range is very wide, so it overlaps silver bands; in practice these castings ring dull and short.
+- None of this is validated against real fakes yet; that is the next step.
+
+## Layered plates — Pro 4.9 / Lite 3.6 (current)
+
+A symmetric three-layer plate with faces of total thickness fraction x around a core has bending stiffness D11 = (h³/12)·Σ Eᵢ/(1−νᵢ²)·wᵢ, where the faces' weight is w = 1−(1−x)³ and the core's is (1−x)³. Its D12/D11 gives the equivalent ν. The equivalent homogeneous plate keeps the laminate's mass per area, E/(1−ν²) = 12·D11/h³ and that ν, so the existing solver applies unchanged. Its uncertainty stacks the layers' ± percentages linearly by stiffness share (modulus) and mass share (density).
+
+The US clad presets now use this model:
+- Cupronickel clad: 75 Cu / 25 Ni faces carrying one third of the mass on a copper core. E rises from 125 to 137.6 GPa, which raises the band by about 5%.
+- 40% silver clad: .800 silver faces on a .209 silver core, 40% silver overall. E falls from 98 to 94.8 GPa. The core modulus of 110 GPa is interpolated, not measured.
+
+**Solver.** The eigenvalue step now uses cyclic Jacobi sweeps instead of largest-pivot Jacobi. The rotations and stopping rule are the same. Eigenvalues agree to better than 10⁻¹² on the solver's own matrices, and it runs about four times faster, which the construction screen needs.
 
 ## Field screen — Pro 4.6 / Lite 3.4
 
@@ -44,7 +109,7 @@ This is an exploratory forward model, not an authenticity calibration. The param
 
 ## Shape and conservation of mass
 
-Model a homogeneous isotropic circular plate with a common mid-plane, a thinner centre, and a concentric thicker annulus. It is a two-zone thickness approximation, not a concave shell. Relief, eccentric rims, rolling texture, cracks, layered construction and contact-induced frequency shifts are not represented.
+Model a homogeneous isotropic circular plate with a common mid-plane, a thinner centre, and a concentric thicker annulus. It is a two-zone thickness approximation, not a concave shell. Relief, eccentric rims, rolling texture, cracks and contact-induced frequency shifts are not represented. Layered construction enters only as an equivalent homogeneous plate (see "Layered plates").
 
 Let outer radius be a, the centre/annulus interface be b*a, centre thickness hc, rim thickness hr, and t=hr/hc. The volume-equivalent thickness is hbar=m/(rho*pi*a²). Keeping mass fixed gives hc=hbar/[b²+t*(1-b²)], hr=t*hc. A measured rim thickness instead determines hc=[hbar-(1-b²)*hr]/b²; impossible or out-of-family combinations are excluded.
 
@@ -58,7 +123,7 @@ K_ij = integral h(r)^3 * [A_i*A_j+B_i*B_j+nu*(A_i*B_j+B_i*A_j)+2*(1-nu)*C_i*C_j]
 
 M_ij = integral h(r)*r^(p_i+p_j+1) dr.
 
-The code uses thickness relative to hbar and evaluates both zone integrals analytically. For n=0 and n=1, project the trial functions perpendicular to rigid translation/tilt in the mass inner product; simply deleting the rigid term would give incorrect free-plate modes. Cholesky whitening transforms K c = lambda^4 M c into a symmetric eigenproblem, solved with Jacobi rotations.
+The code uses thickness relative to hbar and evaluates both zone integrals analytically. For n=0 and n=1, project the trial functions perpendicular to rigid translation/tilt in the mass inner product; simply deleting the rigid term would give incorrect free-plate modes. Cholesky whitening transforms K c = lambda^4 M c into a symmetric eigenproblem, solved with cyclic Jacobi rotations.
 
 Frequency f=lambda²*hbar/(2*pi*a²)*sqrt[E/(12*(1-nu²)*rho)]. We track the same six mode labels as the old solver, with frequencies allowed to change order. The old uniform-plate cubic remains an independent numerical limit check and a legacy playback helper.
 

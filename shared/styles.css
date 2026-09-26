@@ -148,3 +148,18 @@ body[data-edition="pro"] .spectrum-card{margin-top:0}
   .pro-workspace .grid,.pro-workspace [data-pane="library"]{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pro-workspace #spectrum{height:380px}
 }
+
+/* Counterfeit constructions: one row per listed fake, coloured by what the pitch can say. */
+.construction-list{display:grid;gap:10px;margin:14px 0}
+.construction{border:1px solid var(--line2);border-left:4px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--panel2)}
+.construction-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
+.construction-name{color:var(--text)}
+.construction p{margin:6px 0 0;font-size:14px;color:var(--dim)}
+.chip{font:12px var(--mono);letter-spacing:.03em;border:1px solid currentColor;border-radius:999px;padding:2px 9px;white-space:nowrap;color:var(--dim)}
+.construction[data-verdict="clear"]{border-left-color:#4fa872}
+.construction[data-verdict="clear"] .chip{color:#a8e6ba}
+.construction[data-verdict="thick"]{border-left-color:#5f8fb0}
+.construction[data-verdict="thick"] .chip{color:#a9cde6}
+.construction[data-verdict="caution"]{border-left-color:#d8a63c}
+.construction[data-verdict="caution"] .chip{color:#f0ca70}
+#constructionSummary{margin:10px 0 0}

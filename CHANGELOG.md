@@ -2,6 +2,20 @@
 
 Newest first. Each section describes the release it names; behaviour in older sections may since have changed. Current behaviour is in [README.md](README.md) and [MODEL.md](MODEL.md). Git tags `lite-X.Y` and `pro-X.Y` mark each release.
 
+## Pro 4.9 / Lite 3.6 — fakes the pitch can rule out
+
+- **Counterfeit construction screen**, in both editions. For gold and silver coins, a new card lists fakes made to the coin's weight and diameter:
+  - plated tungsten (gold) or molybdenum (silver);
+  - a tungsten or molybdenum core in a gold or silver shell;
+  - underfine metal (5 points less, balance copper);
+  - brass and copper, plus nickel silver, zinc alloy, lead–tin and steel for silver.
+
+  Before a test it shows which ones the pitch separates from a genuine coin and by how much. After a complete test it says which ones the lowest repeatable tone rules out. For shells, it gives the shell thicknesses that remain possible. A full-weight brass Krugerrand is flagged as about twice as thick instead of being modelled. Measurement exports include the screen.
+- **Layered plates.** A symmetric laminate is reduced to an equivalent homogeneous plate with the same bending stiffness and mass per area. The US clad presets use it: cupronickel clad E 125 → 137.6 GPa (band about +5%); 40% silver clad 98 → 94.8 GPa.
+- **Materials.** New presets with handbook ranges: tungsten, molybdenum, copper, nickel silver, zinc alloy and lead–tin. Brass and steel gained ranges; brass density was 8.23 g/cm³ from the mixture rule and is now 8.39–8.75.
+- **Solver.** Cyclic Jacobi replaces largest-pivot Jacobi: same eigenvalues to 10⁻¹², about four times faster.
+- The verdict rules are unchanged.
+
 ## Pro 4.8 / Lite 3.5 — complete tests only, firm Lite result
 
 - **No result before the last tap.** Lite needs two taps and Pro three. Until then both editions show measurements only: no verdict, band position or model fit. Keeping a reading early does not change that.
