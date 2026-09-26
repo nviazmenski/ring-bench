@@ -1,0 +1,15 @@
+{
+  "name": "ringbench",
+  "private": true,
+  "description": "RingBench Lite and Pro: acoustic coin screening in the browser",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/app.test.cjs tests/geometry.test.cjs tests/release.test.cjs",
+    "build": "node scripts/build.mjs lite dist-lite && node scripts/build.mjs pro dist-pro",
+    "stage:lite": "node scripts/build.mjs lite dist --hosting",
+    "stage:pro": "node scripts/build.mjs pro dist --hosting",
+    "serve": "node scripts/serve.mjs 8080"
+  }
+}

@@ -2,3 +2,6 @@ dist-lite/
 dist-pro/
 dist/
 *.tar.gz
+# Written by `npm run stage:lite` / `stage:pro`; per-edition sources are in hosting/.
+.openai/
+node_modules/
