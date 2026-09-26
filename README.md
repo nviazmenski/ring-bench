@@ -6,8 +6,8 @@ This repository holds both editions. They share the detector, the catalogue and 
 
 | Edition | Current release | Taps | Result |
 |---|---|---|---|
-| **Lite** | 3.6 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
-| **Pro** | 4.9 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls |
+| **Lite** | 3.7 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
+| **Pro** | 4.10 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls |
 
 Neither edition gives any result until every required tap is recorded.
 
@@ -32,7 +32,7 @@ retired-site/    the retirement page prepared for the old GitHub Pages address
 index.html       local launcher for both editions
 ```
 
-Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact; tags `lite-3.1` … `lite-3.6` and `pro-4.3` … `pro-4.9` mark every release since.
+Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact; tags `lite-3.1` … `lite-3.6` and `pro-4.3` … `pro-4.9` mark every release to that date; later releases are tagged the same way.
 
 ## Development
 
@@ -63,6 +63,8 @@ Export all references includes the single references and specimen collection. Im
 ## Capture and recordings
 
 The app calibrates the room for 600 ms before Ready. Short-frame onset detection compares the sound with the learned room and recent sound. Clipping confined to the first 20 ms of impact can be omitted with a recovery margin; distorted ringing still fails. Persistent tones must survive separate windows, and flat switched-on tones need an actual impulse or falling ring. Valid Q remains optional. These are provisional acquisition heuristics.
+
+The detector ignores tones below an analysis floor derived for each coin from its model band and those of its modelled fakes, so the striker's own ring cannot pose as the coin's lowest tone. The floor keeps every modelled lowest mode, including the 4 Ducats' at about 660–850 Hz; tones under it stay visible as evidence and are never scored. [MODEL.md](MODEL.md) has the derivation and its guarantee.
 
 Pro saves actual PCM and metadata to device-local IndexedDB. Export WAV per tap and measurement JSON to preserve readings externally. Version 4 measurement exports include the geometry assumptions, screening result, Pro fit and acoustic fingerprint. Existing recordings can be re-evaluated under the current family.
 

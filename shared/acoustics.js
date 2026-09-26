@@ -1,7 +1,10 @@
 "use strict";
 const RULES=Object.freeze({repeatability:.01,modeTolerance:.05,referencePitch:.015,minSnrDb:10,minDecayR2:.90,minDecaySpanDb:8});
 const PRE=.06,CAP=.60;
-const DETECTOR_VERSION="resolved-peaks-v2";
+const DETECTOR_VERSION="resolved-peaks-v3";
+// The detector never looks below this. A coin-specific analysis floor (settings.analysisFloorHz,
+// from analysisFloor) raises it so strike and support sounds cannot pose as the coin's lowest tone.
+const PEAK_SEARCH_MIN_HZ=220;
 const CAPTURE_RULES=Object.freeze({calibrationSeconds:.6,impactGraceMs:20,minimumRiseDb:10,persistenceSnrDb:8});
 const P=c=>predict(c.mass,c.dia,c.rho,c.E,c.nu,c.qmat,c.sup,c.hmm);
 function median(xs){const a=xs.slice().sort((a,b)=>a-b);return a.length%2?a[a.length>>1]:(a[a.length/2-1]+a[a.length/2])/2;}
@@ -198,9 +201,11 @@ async function analyseInner(x,sr,c,settings,source,onset){
   const quality=captureBody(x,sr,onset,settings.skipMs),body=quality.body;
   const usableHz=Math.min(22000,.45*sr,source?.trackRate ? .45*source.trackRate : Infinity);
   const S=spectrum(body,sr,32768,"blackman-harris"),preRoll=x.slice(0,onset),Sn=spectrum(preRoll,sr,32768,"blackman-harris");
-  let pk=peaks(S.mag,S.binHz,220,usableHz,14,S.resolutionHz);
+  // Searching from the floor also keeps a loud thud from setting the peak and prominence references.
+  const floorHz=Math.min(Math.max(PEAK_SEARCH_MIN_HZ,settings.analysisFloorHz||0),usableHz/2);
+  let pk=peaks(S.mag,S.binHz,floorHz,usableHz,14,S.resolutionHz);
   if(!pk.length)throw new Error("No usable tonal peaks. No acoustic result for this capture.");
-  const i0=Math.max(2,Math.floor(220/S.binHz)),i1=Math.min(S.mag.length-3,Math.ceil(usableHz/S.binHz));
+  const i0=Math.max(2,Math.floor(floorHz/S.binHz)),i1=Math.min(S.mag.length-3,Math.ceil(usableHz/S.binHz));
   let peak=0,sum=0;for(let i=i0;i<=i1;i++){peak=Math.max(peak,S.mag[i]);sum+=S.mag[i];}
   const crestDb=20*Math.log10((peak+1e-30)/(sum/Math.max(1,i1-i0+1)+1e-30));
   if(crestDb<settings.crestDb)throw new Error("Insufficient tonal prominence above the background.");
@@ -210,6 +215,9 @@ async function analyseInner(x,sr,c,settings,source,onset){
   if(!pk.length)throw new Error("No stable ringing tone after the impact. Background or brief noise was rejected.");
   // Capture independently of theory. Pro later considers alternative mode identities.
   const tone=pk.reduce((a,b)=>a.mag>=b.mag?a:b),f0=tone.f;
+  // Tones that arrived with the strike but sit below the floor stay visible, never scored.
+  const belowFloor=floorHz>PEAK_SEARCH_MIN_HZ?rejectAmbient(peaks(S.mag,S.binHz,PEAK_SEARCH_MIN_HZ,floorHz,3,S.resolutionHz).filter(p=>p.f<floorHz),S,Sn,Math.min(body.length,32768),Math.min(preRoll.length,32768))
+    .map(p=>({f:p.f,snrDb:p.snrDb,relativeDb:20*Math.log10((p.mag+1e-30)/(tone.mag+1e-30))})):[];
   const selected={offwindow:false,matches:[]}; // Mode identities belong to the later joint fit.
   let q=NaN,tau=NaN,decayFit={valid:false,reason:"Decay could not be measured"};
   try{
@@ -224,7 +232,7 @@ async function analyseInner(x,sr,c,settings,source,onset){
     decayFit=decay(await bandpassRender(body),sr,Math.sqrt(ns/noise.length));
     if(decayFit.valid){tau=decayFit.tau;q=Math.PI*f0*tau;}
   }catch(e){}
-  return {sr,f0,pitchRole:"dominant-tone",detectorVersion:DETECTOR_VERSION,pcm:x.slice(),onset,peaks:pk,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
+  return {sr,f0,pitchRole:"dominant-tone",detectorVersion:DETECTOR_VERSION,pcm:x.slice(),onset,peaks:pk,analysisFloorHz:floorHz,belowFloor,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
     offwindow:selected.offwindow,matches:selected.matches,crestDb,captureQuality:{impactClippedSamples:quality.impactClipped,tailClippedSamples:quality.tailClipped,riseDb:quality.riseDb,analysisSkipMs:(quality.skip-onset)*1000/sr},settings:{...settings},source:{...source},when:new Date().toISOString()};
 }
 

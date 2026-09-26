@@ -310,3 +310,44 @@ test("fake check shows what the pitch can separate, then what the coin rules out
     a.run('ringBench.chooseCoin(flat.findIndex(x=>x.n.startsWith("Crown · cupronickel")))');assert.equal(a.e.constructions.hidden,true);
   }
 });
+
+// A coin ring plus the striking stick's own resonance, over light room noise. The stick must
+// ring for about 100 ms (Q near 100) to survive the windowed spectrum and both persistence windows.
+function stickTap(a,{coinHz,stickHz,coinAmp=.05,coinTau=.5,stickAmp=.3,stickTau=.1,seed=2024}){
+  a.context.fixture={coinHz,stickHz,coinAmp,coinTau,stickAmp,stickTau,seed};
+  return a.run(`(()=>{const {coinHz,stickHz,coinAmp,coinTau,stickAmp,stickTau}=fixture;let seed=fixture.seed;
+    const sr=48000,x=new Float32Array(Math.ceil((PRE+CAP)*sr)),onset=Math.ceil(PRE*sr);
+    for(let i=0;i<x.length;i++){seed=(1664525*seed+1013904223)>>>0;let y=(seed/4294967296*2-1)*2e-4;
+      if(i>=onset){const t=(i-onset)/sr;y+=coinAmp*Math.sin(2*Math.PI*coinHz*t)*Math.exp(-t/coinTau)+stickAmp*Math.sin(2*Math.PI*stickHz*t)*Math.exp(-t/stickTau);}
+      x[i]=y;}return x;})()`);
+}
+async function stickSession(a,coinHz,stickHz,floorOff=false){
+  a.run("ringBench.newSession({kind:'file'})");if(floorOff)a.run("ringBench.getState().session.settings.analysisFloorHz=0");
+  for(let i=0;i<2;i++){a.context.x=stickTap(a,{coinHz:coinHz*(1+i*.001),stickHz,seed:2024+i});assert.equal(await a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)"),true);}
+  return a.run("ringBench.getState().reading");
+}
+test("a ringing stick below the coin's analysis floor cannot pose as its lowest tone; the 4 Ducat ring survives",async()=>{
+  for(const [coin,coinHz,stickHz] of [["Morgan Dollar",4335,300],["4 Ducat",765,300],["4 Dukata",730,250]]){
+    const a=app();a.run(`ringBench.chooseCoin(flat.findIndex(c=>c.n.startsWith(${JSON.stringify(coin)})))`);
+    // Without the floor the stick repeats across taps, becomes the lowest tone and fails a genuine coin.
+    await stickSession(a,coinHz,stickHz,true);
+    assert.equal(a.e.resultTitle.textContent,"NO PASS",coin+" without the floor");assert.match(a.e.resultSummary.textContent,new RegExp("\\("+stickHz+" Hz\\) is below"));
+    const r=await stickSession(a,coinHz,stickHz);
+    assert.equal(a.e.resultTitle.textContent,"PASS",coin);
+    assert.ok(r.strikes.every(s=>s.analysisFloorHz>stickHz&&s.analysisFloorHz<coinHz/1.8),coin+" floor "+r.strikes[0].analysisFloorHz);
+    assert.ok(r.strikes.every(s=>s.peaks.every(p=>p.f>=s.analysisFloorHz)&&s.peaks.some(p=>Math.abs(p.f/coinHz-1)<.005)),coin+": the ring is kept");
+    assert.ok(r.strikes.every(s=>s.belowFloor.some(p=>Math.abs(p.f-stickHz)<2)),coin+": the stick stays visible");
+    const rows=Object.fromEntries(a.e.evidenceRows.children.map(tr=>[tr.children[0].textContent,tr.children[1].textContent]));
+    assert.match(rows["Below analysis floor"],new RegExp("Tap 1: "+stickHz+" Hz .*not scored"));
+    assert.equal(a.run("ringBench.getState().reading.strikes[0].settings.analysisFloorHz"),r.strikes[0].analysisFloorHz,"exports record the floor");
+  }
+});
+test("the analysis floor never hides a modelled lowest mode, and a quiet capture reports no sub-floor tone",async()=>{
+  const a=app();a.run(`ringBench.chooseCoin(flat.findIndex(c=>c.n.startsWith("4 Dukata")))`);
+  // The genuine band's own lower edge, well inside the capture range, is still analysed.
+  const low=a.run("geometryFamily(ringBench.current()).low");a.run("ringBench.newSession({kind:'file'})");
+  assert.equal(await tap(a,low*1.03),true);const s=a.run("ringBench.getState().reading.strikes[0]");
+  assert.ok(Math.abs(s.peaks[0].f/(low*1.03)-1)<.002);assert.deepEqual(Array.from(s.belowFloor),[]);
+  const rows=Object.fromEntries(a.e.evidenceRows.children.map(tr=>[tr.children[0].textContent,tr.children[1].textContent]));
+  assert.match(rows["Below analysis floor"],/^No strike-related tone below 347 Hz$/);
+});

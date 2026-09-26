@@ -119,6 +119,19 @@ function screenConstructions(reading,c,target){
   }
   cache.set(key,result);constructionReadingCache.set(reading,cache);return result;
 }
+// The lowest frequency worth analysing for this coin. Every hypothesis the app can name,
+// the genuine coin and each modelled fake, has its lowest mode at or above `lowestHz`.
+// The floor sits a second-mode ratio and the edge guard below that. Anything whose lowest
+// mode falls under the floor still shows its next mode below every band, so hiding a tone
+// can leave a result at NO PASS but cannot produce a PASS. It is derived per coin, so new
+// catalogue entries and new constructions need no hand-set cutoff. MODEL.md, "Analysis floor".
+function analysisFloor(c){
+  const screen=constructionScreen(c),bands=[screen.genuine,...screen.rows.map(r=>r.band)].filter(b=>b.valid);
+  if(!bands.length)return {hz:0,lowestHz:null,secondModeRatio:null};
+  const lowestHz=Math.min(...bands.map(b=>b.low)),edge=Math.max(...bands.map(b=>b.edge));
+  const secondModeRatio=Math.max(...bands.flatMap(b=>b.candidates.map(g=>{const f=g.f.slice().sort((x,y)=>x-y);return f[1]/f[0]*(1+2*g.numericalError);})));
+  return {hz:(1-edge)*lowestHz/secondModeRatio,lowestHz,secondModeRatio};
+}
 // Plain data for exports: no geometry candidates or cached objects.
 function constructionExport(screen){
   return {model:screen.model,threat:"same mass and diameter as the coin under test",lowestRepeatableHz:screen.reading?.f??null,

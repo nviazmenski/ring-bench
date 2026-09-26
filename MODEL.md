@@ -2,7 +2,7 @@
 
 ## Verdict rules — Pro 4.8 / Lite 3.5 (current)
 
-This section is the current verdict logic; Pro 4.9 / Lite 3.6 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
+This section is the current verdict logic; Pro 4.9 / Lite 3.6 and Pro 4.10 / Lite 3.7 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
 
 **Tap count.** No result is given until the edition's full tap count is recorded: two for Lite, three for Pro. Before that, only measurements are shown.
 
@@ -15,6 +15,44 @@ This section is the current verdict logic; Pro 4.9 / Lite 3.6 left it unchanged.
 **Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits count only when no three-mode fit exists without one. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
 
 **Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
+
+## Analysis floor — Pro 4.10 / Lite 3.7 (current)
+
+This section is current. The verdict rules above are unchanged; the detector now ignores tones below a floor derived for each coin.
+
+**Why.** The striker has resonances of its own. A stick that rings for about 100 ms at 200–300 Hz (Q near 100) survives the windowed spectrum and both persistence windows. It repeats across taps because it is the same stick, so it becomes the lowest repeatable family, and a genuine coin fails with a pitch far below its band. A loud thud also set the detector's −42 dB peak threshold and its prominence reference.
+
+**A fixed cutoff does not work.** The two 4-ducat entries ring at 662–848 Hz. The next-lowest coin, the 1 Ducat, starts at 2649 Hz, and the clad dime at 11 kHz. A cutoff above about 650 Hz loses the 4 Ducats; one below 300 Hz barely helps them and does nothing for the rest.
+
+**Derivation.** For a coin, take every hypothesis the app can name: the genuine coin and each modelled construction. A shell's band lies between its bare core and the genuine alloy, so the bare core covers every shell. Let L be the lowest band edge among these hypotheses. Let R be the largest ratio of second-lowest to lowest mode across their geometry candidates, widened by twice the convergence margin; it is 1.72–1.87 in the current family. Let e be the 2% edge guard. Then
+
+floor = (1 − e) · L / R,
+
+and the detector never searches below 220 Hz whatever the floor.
+
+**Guarantee.** Every modelled lowest mode is at least R above the floor, so the model can overpredict a coin's pitch by about 1.7–1.9× before the floor touches a real ring. Anything whose lowest mode falls under the floor has its next mode below R · floor = (1 − e) · L, which is below the guarded band of every hypothesis. Hiding a tone can therefore leave a result at NO PASS, but it cannot produce a PASS, provided that next mode is observed.
+
+The limit: if an object's lowest mode is hidden and its second mode is not excited either, its third mode, 2.3–2.6× the lowest, could reach the band. That is the existing missed-lowest-mode risk with one more mode missing. It concerns only objects ringing below about half of every modelled band, and no modelled fake does.
+
+**Why the fakes count.** A lead–tin casting of a silver coin rings as low as 0.3× the genuine band. A floor set from the genuine band alone would hide its lowest mode, and one of its upper modes could then be read as its lowest tone. Including every construction keeps the construction screen's verdicts sound as well.
+
+**Values** (catalogue dimensions, default family):
+
+| Coin | Floor | Lowest modelled hypothesis |
+|---|---|---|
+| 4 Dukata 1931–33 | 347 Hz | genuine, 662 Hz |
+| 4 Ducat | 365 Hz | genuine, 696 Hz |
+| Morgan dollar | 766 Hz | lead–tin casting, 1462 Hz (genuine from 3925 Hz) |
+| Krugerrand | 2096 Hz | genuine, 4000 Hz |
+| Dime, clad | 6255 Hz | genuine, 11028 Hz |
+
+New catalogue entries and constructions get a floor automatically. A test checks the guarantee for every catalogue entry, with the default family and with the widest family Pro allows.
+
+**Not a filter.** The floor limits where the detector searches for peaks and computes prominence. The audio itself is not filtered: a time-domain high-pass filter struck by a thud rings near its own cutoff and could create a tone. Tones above the room noise but under the floor are kept for each tap as "Below analysis floor" evidence, and Pro's spectrum shades that region. They are never scored.
+
+Pro computes the floor from the entered values, so edited mass, diameter, modulus or family limits move it. Each tap's settings and measurement exports record `analysisFloorHz`. Saved recordings keep the detector that measured them.
+
+**Residual.** A striker resonance between the floor and the coin's band can still appear, for example a 350 Hz stick on the 4 Dukata. What separates it is a short decay: the synthetic stick in the tests has Q ≈ 94 (τ = 100 ms at 300 Hz), while the app's default material Q for coins is 2000, a model assumption rather than a measurement. Decay does not yet enter acquisition; using it needs calibration on real recordings of both.
 
 ## Counterfeit constructions — Pro 4.9 / Lite 3.6 (current)
 
