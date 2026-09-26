@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0B0906"><title>RingBench · local</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0B0906;color:#e4dccb;font:17px/1.6 system-ui,sans-serif}main{max-width:640px;margin:10vh auto;padding:28px}h1{font:2.1rem Georgia,serif;color:#d5b373;margin:0 0 12px}a{color:#d5b373}nav{display:grid;gap:12px;margin:18px 0 24px}nav a{padding:14px 20px;border:1px solid #6b5a3a;border-radius:12px;background:#1c160d;color:#f0dcae;text-decoration:none}nav a:hover{background:#2a2113}pre{white-space:pre-wrap;word-break:break-all;background:#15110b;border:1px solid #3a3122;border-radius:9px;padding:12px 14px;font-size:14px}small{color:#a39880}
+</style>
+</head>
+<body><main>
+<h1>RingBench · local</h1>
+<p>Both editions, running from this folder’s source files.</p>
+<nav aria-label="Editions">
+<a href="lite/index.html">RingBench Lite — quick field check</a>
+<a href="pro/index.html">RingBench Pro — three-tap workbench</a>
+</nav>
+<div id="help" hidden>
+<p>This browser does not allow the microphone for pages opened straight from disk. Recordings can still be loaded with <em>Load a recording</em>. For live taps, serve this folder on localhost (Node 20 or later):</p>
+<pre id="serve"></pre>
+<p>Then open <a href="http://localhost:8080/">http://localhost:8080/</a>.</p>
+</div>
+<p><small>References, recordings and the Library saved here stay in this browser and are separate from the hosted sites; use Export and Import to move them.</small></p>
+</main>
+<script>
+"use strict";
+if(!(window.isSecureContext&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+  const folder=decodeURIComponent(location.pathname).replace(/\/[^/]*$/,"").replace(/^\/([A-Za-z]:)/,"$1");
+  document.getElementById("serve").textContent='node "'+folder+'/scripts/serve.mjs"';
+  document.getElementById("help").hidden=false;
+}
+</script>
+</body></html>
