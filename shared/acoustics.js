@@ -95,6 +95,24 @@ function persistentTones(pk,body,sr,preSpec,preLength,impulsive=false){
   });
 }
 
+// Experimental, used only with Pro's 3D solid model. Upper plate modes decay far faster than the lowest one:
+// over the full ring they can sit 50–75 dB below it, under the 42 dB peak threshold, though they are only
+// 10–40 dB down in the first 100 ms. This second search looks there. Each tone must still clear the pre-strike
+// noise and persist into the later window, and the fit still needs it in every tap within 1%. Its level is
+// reported from the full-ring spectrum so relative levels stay comparable with the other peaks.
+const EARLY_SCAN_VERSION="early-window-v1";
+// It searches only above 1.4× the lowest tone the standard detector kept: strike and holder sounds are loudest in
+// this window, and every modelled second mode is at least 1.5× the lowest, so it cannot change the lowest tone.
+const EARLY_SCAN_MIN_RATIO=1.4;
+function earlyWindowPeaks(body,sr,preRoll,S,floorHz,usableHz,impulsive,known){
+  const n=Math.min(body.length,Math.floor(.1*sr)),E=spectrum(body.slice(0,n),sr,32768,"blackman-harris"),Sn=spectrum(preRoll,sr,32768,"blackman-harris");
+  const from=Math.max(floorHz,EARLY_SCAN_MIN_RATIO*Math.min(...known.map(k=>k.f)));
+  if(!(from<usableHz))return [];
+  let pk=peaks(E.mag,E.binHz,from,usableHz,14,E.resolutionHz).filter(p=>known.every(k=>Math.abs(k.f-p.f)>4*E.resolutionHz));
+  pk=rejectAmbient(pk,E,Sn,Math.min(n,32768),Math.min(preRoll.length,32768));
+  pk=persistentTones(pk,body,sr,Sn,preRoll.length,impulsive);
+  return pk.map(p=>{const bin=Math.round(p.f/S.binHz);let mag=0;for(let d=-2;d<=2;d++)mag=Math.max(mag,S.mag[bin+d]||0);return {...p,mag,earlyMag:p.mag,early:true};});
+}
 function rejectAmbient(pk,bodySpec,preSpec,bodyLength,preLength){
   const scale=bodyLength/Math.max(1,preLength);
   return pk.filter(p=>{
@@ -215,6 +233,7 @@ async function analyseInner(x,sr,c,settings,source,onset){
   if(!pk.length)throw new Error("No stable ringing tone after the impact. Background or brief noise was rejected.");
   // Capture independently of theory. Pro later considers alternative mode identities.
   const tone=pk.reduce((a,b)=>a.mag>=b.mag?a:b),f0=tone.f;
+  if(settings.upperScan)pk=pk.concat(earlyWindowPeaks(body,sr,preRoll,S,floorHz,usableHz,quality.impulsive,pk)).sort((a,b)=>a.f-b.f);
   // Tones that arrived with the strike but sit below the floor stay visible, never scored.
   const belowFloor=floorHz>PEAK_SEARCH_MIN_HZ?rejectAmbient(peaks(S.mag,S.binHz,PEAK_SEARCH_MIN_HZ,floorHz,3,S.resolutionHz).filter(p=>p.f<floorHz),S,Sn,Math.min(body.length,32768),Math.min(preRoll.length,32768))
     .map(p=>({f:p.f,snrDb:p.snrDb,relativeDb:20*Math.log10((p.mag+1e-30)/(tone.mag+1e-30))})):[];
@@ -232,7 +251,7 @@ async function analyseInner(x,sr,c,settings,source,onset){
     decayFit=decay(await bandpassRender(body),sr,Math.sqrt(ns/noise.length));
     if(decayFit.valid){tau=decayFit.tau;q=Math.PI*f0*tau;}
   }catch(e){}
-  return {sr,f0,pitchRole:"dominant-tone",detectorVersion:DETECTOR_VERSION,pcm:x.slice(),onset,peaks:pk,analysisFloorHz:floorHz,belowFloor,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
+  return {sr,f0,pitchRole:"dominant-tone",detectorVersion:DETECTOR_VERSION,upperScan:settings.upperScan?EARLY_SCAN_VERSION:null,pcm:x.slice(),onset,peaks:pk,analysisFloorHz:floorHz,belowFloor,q,tau,decayFit,mag:S.mag,binHz:S.binHz,nyq:sr/2,usableHz,
     offwindow:selected.offwindow,matches:selected.matches,crestDb,captureQuality:{impactClippedSamples:quality.impactClipped,tailClippedSamples:quality.tailClipped,riseDb:quality.riseDb,analysisSkipMs:(quality.skip-onset)*1000/sr},settings:{...settings},source:{...source},when:new Date().toISOString()};
 }
 

@@ -53,11 +53,66 @@ function rimEigenvalues(nu,width,ratio,terms=6){
   if(rimEigenCache.size>20000)rimEigenCache.clear();rimEigenCache.set(key,result);return result;
 }
 function familyOptions(c){return {...FAMILY_DEFAULTS,...c.family};}
+// ───────── experimental 3D solid family (Pro; catalogue entries with a solid cross-section model) ─────────
+// Precomputed plate-equivalent λ² from pro/solid-tables.js (Pro only), interpolated in volume-equivalent thickness/radius,
+// rim/volume-equivalent thickness and ν. Each table sample is one admissible cross-section from the priors in
+// MODEL.md; the rim thickness is the entered caliper reading ±SOLID_RIM_TOLERANCE_MM, or the catalogue prior.
+const SOLID_TABLES={"morgan-solid":()=>typeof MORGAN_SOLID_TABLE==="undefined"?null:MORGAN_SOLID_TABLE};
+const SOLID_RIM_PRIOR_MM={"morgan-solid":[2.35,2.85]};
+const SOLID_RIM_TOLERANCE_MM=.03;
+// Table interpolation (≤1.2e-4 measured), rounding and mesh error together stay under this relative bound.
+const SOLID_NUMERICAL_ERROR=2e-4;
+// A centre support (Pocket Pinger, fingertip, tongs) touches the axisymmetric (0,s) and tilting (1,s) modes where
+// they move, damping and stiffening them; the n≥2 modes have zero displacement and slope at the centre.
+const SOLID_SUPPORT_AFFECTED=[1,3],SOLID_SUPPORT_SHIFT=.15;
+function solidLookup(table,si,hbar,rim,nu){
+  const G=table.grid,axes=[[G.hbar,hbar],[G.rim,rim],[G.nu,nu]],cell=[];
+  for(const [xs,x] of axes){
+    if(!(x>=xs[0]-1e-12&&x<=xs.at(-1)+1e-12))return null;
+    let k=0;while(k<xs.length-2&&x>xs[k+1])k++;cell.push([k,Math.min(1,Math.max(0,(x-xs[k])/(xs[k+1]-xs[k])))]);
+  }
+  const out=[0,0,0,0,0,0],[H,R,V]=[G.hbar.length,G.rim.length,G.nu.length];
+  for(let corner=0;corner<8;corner++){
+    const idx=cell.map(([k,t],d)=>k+(corner>>d&1)),w=cell.reduce((s,[k,t],d)=>s*((corner>>d&1)?t:1-t),1);
+    if(w===0)continue;
+    const at=(((si*H+idx[0])*R+idx[1])*V+idx[2])*6;
+    for(let m=0;m<6;m++){const v=table.data[at+m];if(!v)return null;out[m]+=w*v/table.scale;}
+  }
+  return out;
+}
+function solidFamily(c,o,h,scale,lowScale,highScale){
+  const table=SOLID_TABLES[c.plateModel]?.(),a=c.dia/2,candidates=[];
+  const base={model:table?.model||c.plateModel,solver:table?.solver,options:o,candidates,h,lowScale,highScale,source:"solid",edge:o.edgePct/100,
+    support:c.support==="other"?"other":"centre"};
+  base.scored=[0,1,2,3,4,5].map(i=>base.support!=="centre"||!SOLID_SUPPORT_AFFECTED.includes(i));
+  if(!table)return {...base,low:NaN,high:NaN,valid:false,reason:"The solid model tables are not loaded."};
+  const hbar=h/a,prior=SOLID_RIM_PRIOR_MM[c.plateModel],measured=c.rimThickness>0;
+  const [lo,hi]=measured?[c.rimThickness-SOLID_RIM_TOLERANCE_MM,c.rimThickness+SOLID_RIM_TOLERANCE_MM]:prior;
+  const rims=[...new Set([lo,...table.grid.rim.map(r=>r*h).filter(t=>t>lo&&t<hi),measured?c.rimThickness:hi,hi])].sort((x,y)=>x-y);
+  table.samples.forEach((x,si)=>{
+    const params=Object.fromEntries(table.keys.map((k,i)=>[k,x[i]]));
+    for(const rim of rims){
+      const lam=solidLookup(table,si,hbar,rim/h,c.nu);
+      if(lam)candidates.push({sample:si,params,rim,width:params.wR,ratio:rim/h,f:lam.map(v=>v*scale),errors:lam.map(()=>SOLID_NUMERICAL_ERROR),numericalError:SOLID_NUMERICAL_ERROR});
+    }
+  });
+  const low=candidates.length?Math.min(...candidates.map(g=>g.f[0]*(1-2*g.numericalError)*lowScale)):NaN;
+  const high=candidates.length?Math.max(...candidates.map(g=>g.f[0]*(1+2*g.numericalError)*highScale)):NaN;
+  const G=table.grid,inside=hbar>=G.hbar[0]&&hbar<=G.hbar.at(-1)&&c.nu>=G.nu[0]&&c.nu<=G.nu.at(-1);
+  const reason=candidates.length?"":!inside?"The entered mass, diameter and Poisson ratio are outside the solid model's tables (thickness/radius "+G.hbar[0]+"–"+G.hbar.at(-1)+", ν "+G.nu[0]+"–"+G.nu.at(-1)+").":"No sampled cross-section fits this mass with a rim of "+lo.toFixed(2)+"–"+hi.toFixed(2)+" mm.";
+  return {...base,low,high,rims:[lo,hi],rimMeasured:measured,valid:candidates.length>0&&low>0,reason};
+}
 function geometryFamily(c){
-  const o=familyOptions(c),key=JSON.stringify([c.mass,c.dia,c.rho,c.E,c.nu,c.rimThickness||0,o]);
+  const o=familyOptions(c),key=JSON.stringify([c.mass,c.dia,c.rho,c.E,c.nu,c.rimThickness||0,o,c.plateModel||"plate",c.support||"centre"]);
   if(familyCache.has(key))return familyCache.get(key);
   const h=c.mass/(c.rho*Math.PI*(c.dia/20)**2)*10,a=c.dia/2000;
   const scale=h/1000/(2*Math.PI*a*a)*Math.sqrt(c.E*1e9/(12*(1-c.nu*c.nu)*c.rho*1000));
+  if(c.plateModel&&c.plateModel!=="plate"){
+    const lowScale=(1-o.massPct/100)*Math.sqrt(1-o.ePct/100)/((1+o.diaPct/100)**4*(1+o.rhoPct/100)**1.5);
+    const highScale=(1+o.massPct/100)*Math.sqrt(1+o.ePct/100)/((1-o.diaPct/100)**4*(1-o.rhoPct/100)**1.5);
+    const result=solidFamily(c,o,h,scale,lowScale,highScale);
+    if(familyCache.size>150)familyCache.clear();familyCache.set(key,result);return result;
+  }
   const candidates=[],widths=[.03,.06,.09,.12,.16].filter(w=>w<o.widthMax).concat(o.widthMax);
   for(const width of widths)for(let step=0;step<=4;step++){
     let ratio=1+(o.ratioMax-1)*step/4;
@@ -79,8 +134,14 @@ function geometryFamily(c){
   const highScale=(1+o.massPct/100)*Math.sqrt(1+o.ePct/100)/((1-o.diaPct/100)**4*(1-o.rhoPct/100)**1.5);
   const low=candidates.length?Math.min(...candidates.map(g=>Math.min(...g.f)*(1-2*g.numericalError)*lowScale)):NaN;
   const high=candidates.length?Math.max(...candidates.map(g=>Math.min(...g.f)*(1+2*g.numericalError)*highScale)):NaN;
-  const result={model:GEOMETRY_MODEL,options:o,candidates,h,low,high,lowScale,highScale,source:"model",valid:candidates.length>0&&low>0,edge:o.edgePct/100};
+  const result={model:GEOMETRY_MODEL,options:o,candidates,h,low,high,lowScale,highScale,source:"model",valid:candidates.length>0&&low>0,edge:o.edgePct/100,scored:[true,true,true,true,true,true]};
   if(familyCache.size>150)familyCache.clear();familyCache.set(key,result);return result;
+}
+// The solid model predicts the axisymmetric frequency; a split pair (relief, rolling texture) straddles it.
+// To first order the split moves ω² symmetrically, so each family is scored at its RMS frequency.
+function familyObservations(reading,harmonic=false){
+  return modalFamilies(reading).filter(f=>(f.harmonicOf!==undefined)===harmonic).map(f=>({f:Math.sqrt(f.frequencies.reduce((s,x)=>s+x*x,0)/f.frequencies.length),familyIndex:f.index,
+    ...(harmonic?{parentIndex:f.harmonicOf,harmonicCandidate:true}:{})}));
 }
 function bandPosition(f,band){
   if(!band?.valid||!Number.isFinite(f)||f<=0)return "inconclusive";
@@ -143,7 +204,7 @@ function plateRatioEvidence(reading,c){
   for(let a=0;a<families.length;a++)for(let b=a+1;b<families.length;b++){
     const observed=families[b].centre/families[a].centre,candidates=[];
     for(const g of family.candidates){
-      const modes=g.f.map((f,mode)=>({f,mode})).filter(x=>x.f*family.lowScale<=reading.usableHz).sort((x,y)=>x.f-y.f);
+      const modes=g.f.map((f,mode)=>({f,mode})).filter(x=>family.scored[x.mode]&&x.f*family.lowScale<=reading.usableHz).sort((x,y)=>x.f-y.f);
       for(let i=0;i<modes.length;i++)for(let j=i+1;j<modes.length;j++){
         const ratio=modes[j].f/modes[i].f,ratioError=Math.abs(observed/ratio-1),scale=Math.sqrt(families[a].centre*families[b].centre/(modes[i].f*modes[j].f));
         const absoluteErrors=[Math.abs(families[a].centre/(modes[i].f*scale)-1),Math.abs(families[b].centre/(modes[j].f*scale)-1)],tol=family.options.fitPct/100+2*g.numericalError;
@@ -158,10 +219,12 @@ function plateRatioEvidence(reading,c){
 function modeEnvelopes(c){
   const family=geometryFamily(c);
   if(!family.valid)return [];
+  // Under a centre support the solid model's (0,s) and (1,s) envelopes extend upward: the support can stiffen them.
   return family.candidates[0].f.map((_,mode)=>({
     mode,
     low:Math.min(...family.candidates.map(g=>g.f[mode]*(1-2*g.numericalError)*family.lowScale)),
-    high:Math.max(...family.candidates.map(g=>g.f[mode]*(1+2*g.numericalError)*family.highScale))
+    high:Math.max(...family.candidates.map(g=>g.f[mode]*(1+2*g.numericalError)*family.highScale))*(family.scored[mode]?1:1+SOLID_SUPPORT_SHIFT),
+    supportAffected:!family.scored[mode]
   }));
 }
 function modalEnvelopeEvidence(reading,c){
@@ -192,11 +255,12 @@ function primaryResonanceEvidence(fingerprint){
 // the explicitly allowed material/dimension uncertainty; each ratio must fit too.
 function fitGeometryFamily(reading,c){
   const cacheKey=JSON.stringify(c),cache=fitCache.get(reading)||new Map();if(cache.has(cacheKey))return cache.get(cacheKey);
-  const family=geometryFamily(c),observed=scoringTracks(reading).filter(p=>p.f<=reading.usableHz),harmonics=harmonicCandidateTracks(reading).filter(p=>p.f<=reading.usableHz),results=[];
-  if(observed.length<2||reading.strikes.length<2||!family.valid)return {family,observed,results,best:null,supported:[],identityFits:[],matchedModeCount:0,state:"insufficient"};
+  const family=geometryFamily(c),solid=family.source==="solid",results=[];
+  const observed=(solid?familyObservations(reading):scoringTracks(reading)).filter(p=>p.f<=reading.usableHz),harmonics=(solid?familyObservations(reading,true):harmonicCandidateTracks(reading)).filter(p=>p.f<=reading.usableHz);
+  if(observed.length<2||reading.strikes.length<2||!family.valid)return {family,observed,harmonicCount:harmonics.length,results,best:null,supported:[],identityFits:[],matchedModeCount:0,state:"insufficient"};
   const tolerance=family.options.fitPct/100;
   for(const g of family.candidates){
-    const modes=g.f.map((f,i)=>({f,i})).filter(m=>m.f*family.lowScale<=reading.usableHz).sort((a,b)=>a.f-b.f);
+    const modes=g.f.map((f,i)=>({f,i})).filter(m=>family.scored[m.i]&&m.f*family.lowScale<=reading.usableHz).sort((a,b)=>a.f-b.f);
     // Try every recurring tone as the lowest observed member of a mode pattern.
     // Each path may therefore include frequencies below the loudest resonance.
     for(const anchor of observed){
@@ -221,7 +285,7 @@ function fitGeometryFamily(reading,c){
         const ratioErrors=match.slice(1).map(p=>Math.abs((p.measured/anchor.f)/(p.predicted/base.f)-1));
         const residual=Math.sqrt(absErrors.reduce((s,v)=>s+v*v,0)/match.length);
         const supported=Math.max(...absErrors,...ratioErrors)<=tolerance+2*g.numericalError;
-        results.push({geometry:g,matches:match,scale,residual,ratioResidual:Math.max(...ratioErrors),supported,rootMode:base.i,fundamentalObserved:base.i===g.f.indexOf(Math.min(...g.f)),harmonicAssisted:match.some(p=>p.harmonicCandidate)});
+        results.push({geometry:g,matches:match,scale,freeScale:unconstrained,residual,ratioResidual:Math.max(...ratioErrors),supported,rootMode:base.i,fundamentalObserved:base.i===g.f.indexOf(Math.min(...g.f)),harmonicAssisted:match.some(p=>p.harmonicCandidate)});
       }
     }
     }
@@ -232,7 +296,7 @@ function fitGeometryFamily(reading,c){
   const kept=results.filter(r=>!r.harmonicAssisted||!strictFit&&r.supported&&r.matches.length>=3);
   const best=kept[0]||null,supported=kept.filter(r=>r.supported&&r.matches.length>=3);
   const identityFits=kept.filter(r=>r.supported),matchedModeCount=Math.max(0,...identityFits.map(r=>r.matches.length));
-  const result={family,observed,results:kept.slice(0,30),identityFits,best,supported,matchedModeCount,harmonicAssisted:supported.length>0&&!strictFit,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
+  const result={family,observed,harmonicCount:harmonics.length,results:kept.slice(0,30),identityFits,best,supported,matchedModeCount,harmonicAssisted:supported.length>0&&!strictFit,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
   cache.set(cacheKey,result);fitCache.set(reading,cache);return result;
 }
 
@@ -250,7 +314,10 @@ function estimateFundamental(r,c){
     else reason=missing?"The peak pattern permits an unobserved lower fundamental or competing mode identities.":"Several recurring peaks remain plausible fundamentals.";
   }else if(observed.length===1){f0=observed[0].f;basis="single-tone";reason="Only one credible tone; fundamental identity is provisional.";}
   else{ambiguous=true;reason=observed.length?"Recurring peaks do not establish a unique fundamental.":"No common tone was retained across the taps.";}
-  const taps=f0===null?[]:r.strikes.map(s=>s.peaks.filter(p=>Math.abs(p.f/f0-1)<=.01).sort((a,b)=>Math.abs(a.f-f0)-Math.abs(b.f-f0))[0]?.f);
+  // A split family scored at its centroid (solid model) is tracked per tap at that tap's centroid.
+  const split=f0===null||fit.family.source!=="solid"?null:modalFamilies(r).find(f=>f.tracks.length>1&&inFamily(f0,f)&&!f.frequencies.some(x=>Math.abs(x/f0-1)<=1e-9));
+  const taps=f0===null?[]:split?r.strikes.map((s,i)=>{const fs=split.tracks.map(t=>t.observations.find(o=>o.tap===i)?.f);return fs.every(Number.isFinite)?Math.sqrt(fs.reduce((a,x)=>a+x*x,0)/fs.length):undefined;})
+    :r.strikes.map(s=>s.peaks.filter(p=>Math.abs(p.f/f0-1)<=.01).sort((a,b)=>Math.abs(a.f-f0)-Math.abs(b.f-f0))[0]?.f);
   const complete=taps.length===r.strikes.length&&taps.every(Number.isFinite);
   const spread=complete?(Math.max(...taps)-Math.min(...taps))/median(taps):null;
   return {f0,ambiguous,basis,reason,taps,spread,repeatable:complete&&taps.length>=2&&spread<=.01,dominantHz:r.f0};
@@ -304,6 +371,7 @@ function screenReading(r,c,requirePattern=false,requiredTaps=requirePattern?3:2)
     else{state="anomalous";diagnostic="primary-above-model";reason="The lowest repeatable resonance ("+hz+" Hz) is above the lowest-mode band ("+range+") and the recurring tones do not fit the model as upper modes. Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
   }else if(fieldPosition==="anomalous"){state="anomalous";diagnostic="primary-outside-model";reason="The lowest repeatable resonance ("+hz+" Hz) is below the current model band ("+range+"). Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
   else{state="evidence";diagnostic="primary-band-edge";reason="The lowest repeatable resonance is near a model-band edge or has no clear lowest-mode assignment. Check dimensions and repeat the strike.";}
+  if(requirePattern&&!provisional&&band.source==="solid")reason+=" Experimental 3D Morgan model"+(band.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are not scored":"")+".";
   return {state,reason,diagnostic,primary,fieldPosition,band,repeatable,provisional,estimate,fingerprint,fit};
 }
 

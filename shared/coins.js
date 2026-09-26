@@ -220,7 +220,7 @@ const COINS=[
  {region:"United States",g:"United States — silver and clad",items:[
   {n:"Trade Dollar · 1873–85",         m:27.2155, d:38.10, a:"ag900"},
   {n:"Seated Liberty Dollar · 1840–73",m:26.7296, d:38.10, a:"ag900"},
-  {n:"Morgan Dollar · 1878–1921",      m:26.7296, d:38.10, a:"ag900"},
+  {n:"Morgan Dollar · 1878–1921",      m:26.7296, d:38.10, a:"ag900", solid:"morgan-solid"},
   {n:"Peace Dollar · 1921–35",         m:26.7296, d:38.10, a:"ag900"},
   {n:"Half Dollar 90% · 1873–1964",    m:12.5000, d:30.60, a:"ag900"},
   {n:"Half Dollar 40% clad · 1965–70", m:11.5000, d:30.60, a:"ag400"},

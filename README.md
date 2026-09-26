@@ -6,10 +6,12 @@ This repository holds both editions. They share the detector, the catalogue and 
 
 | Edition | Current release | Taps | Result |
 |---|---|---|---|
-| **Lite** | 3.7 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
-| **Pro** | 4.10 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls |
+| **Lite** | 3.8 | 2 | **PASS** / **NO PASS** on the lowest repeatable pitch, using catalogue weight, diameter and alloy |
+| **Pro** | 4.11 | 3 | Field result plus a joint multimode fit, evidence tables, recordings, reference specimens and model controls; an experimental 3D solid model for the Morgan dollar |
 
 Neither edition gives any result until every required tap is recorded.
+
+**Experimental: 3D solid model for the Morgan dollar (Pro).** The thin-plate model overpredicts thick coins, more for higher modes: about 2% on the lowest mode of a Morgan, 4% on (3,0) and 7% on (4,0). For the Morgan, Pro can instead use a 3D elastic model of its cross-section: die basin, relief, denticles and rim, with the rim thickness from your calipers. With that model selected it also scores split tone pairs at their centroid and skips modes a centre support damps. It searches the first 100 ms of each tap for fast-decaying upper modes. It is opt-in and tested on one recorded specimen so far; see [MODEL.md](MODEL.md), "3D solid model".
 
 **Fakes the pitch can rule out.** For gold and silver coins, both editions also list specific counterfeit constructions made to the coin's weight and diameter: the fakes that pass a scale and calipers. The list covers plated tungsten or molybdenum, a tungsten or molybdenum core in a precious-metal shell, underfine metal and common base metals. Before a test it shows which of them the pitch can separate from a genuine coin, and by how much. After a complete test it says which ones this coin's lowest repeatable tone rules out, and which remain possible, such as underfine metal or a thick shell over a tungsten core. It is modelled from handbook material ranges, not yet validated against real fakes. [MODEL.md](MODEL.md) has the derivation, assumptions and limits; [CHANGELOG.md](CHANGELOG.md) has the release history.
 
@@ -25,8 +27,11 @@ shared/          detector, catalogue, solver, references and controller used by 
   references.js    saved references and specimen collection
   app.js           controller
 lite/, pro/      each edition's page, entrypoint, manifest, icons and scoped offline worker
-tests/           node:test suites (synthetic audio, model, verdicts, release hygiene)
-scripts/         build.mjs (stage an edition), serve.mjs (local server)
+  pro/solid.js        experimental axisymmetric 3D elastic solver and the Morgan cross-section (Pro only)
+  pro/solid-tables.js generated eigenvalue tables for the Morgan cross-sections (do not edit)
+tests/           node:test suites (synthetic audio, model, verdicts, release hygiene; a real Morgan recording in fixtures/)
+scripts/         build.mjs (stage an edition), serve.mjs (local server), solid-tables.mjs (generate or check the solid tables)
+research/solid/  Python validation and research scripts behind MODEL.md's "3D solid model" (not used by the app)
 hosting/         per-edition hosting project configuration
 retired-site/    the retirement page prepared for the old GitHub Pages address
 index.html       local launcher for both editions
@@ -42,6 +47,8 @@ No dependency installation is required. With Node 20 or later:
 npm test            # all suites
 npm run serve       # http://localhost:8080/ — Lite at /lite/, Pro at /pro/
 npm run build       # stage dist-lite/ and dist-pro/
+npm run solid:check # recompute sample entries of pro/solid-tables.js from the solver
+npm run solid:tables # regenerate pro/solid-tables.js (about 10 minutes on 4 cores)
 ```
 
 Microphones need localhost or HTTPS, so use `npm run serve` for live taps; pages opened from disk can still load recordings. Edit the source here, never a staged copy.

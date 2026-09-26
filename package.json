@@ -6,10 +6,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/app.test.cjs tests/geometry.test.cjs tests/constructions.test.cjs tests/release.test.cjs",
+    "test": "node --test tests/app.test.cjs tests/geometry.test.cjs tests/constructions.test.cjs tests/solid.test.cjs tests/release.test.cjs",
     "build": "node scripts/build.mjs lite dist-lite && node scripts/build.mjs pro dist-pro",
     "stage:lite": "node scripts/build.mjs lite dist --hosting",
     "stage:pro": "node scripts/build.mjs pro dist --hosting",
-    "serve": "node scripts/serve.mjs 8080"
+    "serve": "node scripts/serve.mjs 8080",
+    "solid:tables": "node scripts/solid-tables.mjs",
+    "solid:check": "node scripts/solid-tables.mjs --check"
   }
 }
