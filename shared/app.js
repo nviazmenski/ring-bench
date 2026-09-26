@@ -93,7 +93,7 @@ function startRingBench({edition,target,build}){
     put("dominantFrequency",reading?"Loudest resonance: "+Math.round(reading.f0)+" Hz":"");
     put("comparisonText",band.valid?"Lowest-mode model band "+Math.round(band.low)+"–"+Math.round(band.high)+" Hz":"No admissible geometry · review Model inputs");
     put("bandBasis","Model-based, not an empirical genuine-coin range. Near either edge: "+(pro?"inconclusive.":"NO PASS."));
-    put("bandAssumptions","Rim width 3–"+(band.options.widthMax*100).toFixed(0)+"% of radius; rim/centre thickness 1–"+band.options.ratioMax+". Assumed uncertainty: modulus ±"+band.options.ePct+"%, density ±"+band.options.rhoPct+"%, mass ±"+band.options.massPct+"%, diameter ±"+band.options.diaPct+"%. Edge guard ±2%. Relief and layered construction are not modelled.");
+    put("bandAssumptions","Rim width 3–"+(band.options.widthMax*100).toFixed(0)+"% of radius; rim/centre thickness 1–"+band.options.ratioMax+". Assumed uncertainty: modulus ±"+band.options.ePct+"%, density ±"+band.options.rhoPct+"%, mass ±"+band.options.massPct+"%, diameter ±"+band.options.diaPct+"%. Edge guard ±2%. Relief is not modelled; clad coins use an equivalent layered plate. Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(c)))+" Hz are treated as strike or support sound, never as the coin.");
     $("result").hidden=!reading;$("finish").hidden=!reading||reading.complete;$("finish").disabled=busy;
     const fingerprintSavable=pro&&fingerprint?.repeatable&&fingerprint.tracks.length>0;
     $("saveref").disabled=!reading||!reading.complete||!(estimate?.repeatable&&!estimate.ambiguous||fingerprintSavable)||reading.strikes.some(s=>s.offwindow)||!$("reftrusted").checked;
@@ -112,7 +112,7 @@ function startRingBench({edition,target,build}){
         ["Lowest recurring family",e.primary.family?e.primary.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · "+(e.fieldPosition==="compatible"&&e.primary.insideLowest?"within expected lowest-mode band":e.fieldPosition==="anomalous"?"outside expected lowest-mode band":"near band edge or mode identity unresolved"):"Unavailable"],
         ["Secondary model coverage",e.primary.secondaryOutside.length?e.primary.secondaryOutside.map(a=>a.family.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · not represented by current model").join("; "):"No repeatable secondary family outside the current envelopes"],
         ["Peak tracking","Resolved neighbors are tracked separately; matching is limited by their spacing as well as the 1% cap."],
-        ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved":"Earlier detector. Record again or reload exported WAVs to recover closely spaced peaks; the saved capture is unchanged."],
+        ["Detector",reading.strikes.every(s=>s.detectorVersion===DETECTOR_VERSION)?"Resolution-aware detection · neighboring peaks retained when resolved · analysis floor "+Math.round(reading.strikes[0].analysisFloorHz)+" Hz":"Earlier detector. Record again or reload exported WAVs to apply the current detector; the saved capture is unchanged."],
         ["Independent model assignments",(e.fit.matchedModeCount||0)+" supported jointly · three required only for Pro's full model fit. Nearby components of one possible split family cannot count twice."],
         ["Other observed peaks",reading.strikes.map((s,i)=>{const others=s.peaks.filter(p=>!fingerprint.tracks.some(t=>t.observations.some(o=>o.tap===i&&o.f===p.f)));return others.length?"Tap "+(i+1)+": "+others.map(p=>p.f.toFixed(1)+" Hz").join(", "):null;}).filter(Boolean).join("; ")||"None beyond the recurring tracks"],
         ["Modal-family structure",fingerprint.families.length?fingerprint.families.map(f=>f.harmonicOf!==undefined?f.centre.toFixed(1)+" Hz · possible "+f.harmonicOrder+"× harmonic of "+fingerprint.families[f.harmonicOf].centre.toFixed(1)+" Hz":f.tracks.length>1?f.frequencies.map(x=>x.toFixed(1)).join(" / ")+" Hz · possible split "+(f.split*100).toFixed(2)+"%":f.centre.toFixed(1)+" Hz · separate track").join("; "):"Unavailable"],
@@ -123,6 +123,7 @@ function startRingBench({edition,target,build}){
         ["Mode identity",estimate.reason],
         ["Early/late persistence",fingerprint.decay.length?fingerprint.decay.map(x=>x.f.toFixed(0)+" Hz: "+x.earlyLateDb.toFixed(1)+" dB change").join("; ")+" · descriptive only":"Unavailable; excluded from compatibility"],
         ["Relative peak levels",fingerprint.tracks.length?fingerprint.tracks.map(x=>x.f.toFixed(0)+" Hz: "+x.relativeDb.toFixed(1)+" dB").join("; ")+" · normalized within each tap, descriptive only":"Unavailable"],
+        ["Below analysis floor",reading.strikes.some(s=>s.belowFloor?.length)?reading.strikes.map((s,i)=>s.belowFloor?.length?"Tap "+(i+1)+": "+s.belowFloor.map(p=>p.f.toFixed(0)+" Hz ("+(p.relativeDb>=0?"+":"")+p.relativeDb.toFixed(0)+" dB vs loudest ring tone)").join(", "):null).filter(Boolean).join("; ")+" · strike or support sound under "+Math.round(reading.strikes[0].analysisFloorHz)+" Hz, not scored":"No strike-related tone below "+Math.round(reading.strikes[0].analysisFloorHz||220)+" Hz"],
         ["Capture",reading.strikes.some(s=>s.captureQuality?.impactClippedSamples)?"Brief impact clipping excluded; ringing tail usable":"Strike and sustained-tone checks passed"],
         ["Model band",e.band.valid?Math.round(e.band.low)+"–"+Math.round(e.band.high)+" Hz · assumption-dependent":"No admissible geometry"],
         ["Recurring peaks",recurringPeaks(reading).length+" distinct observed tones"],
@@ -264,7 +265,9 @@ function startRingBench({edition,target,build}){
   }
   function audio(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();ac.resume();return ac;}
   function playPCM(y,sr,at=0){const ctx=audio(),b=ctx.createBuffer(1,y.length,sr);b.copyToChannel(y,0);const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start(at||ctx.currentTime);playing.push(s);return y.length/sr;}
-  function newSession(source){invalidate();session={id:generation,spec:current(),settings:snapshot(),reference:refs[key()]||null,source,strikes:[],files:new Set()};$("reftrusted").checked=false;$("refnote").value="";render();return generation;}
+  // A model failure must not block capture: the detector then keeps its own minimum.
+  function floorFor(spec){try{return analysisFloor(spec).hz;}catch{return 0;}}
+  function newSession(source){invalidate();const spec=current();session={id:generation,spec,settings:{...snapshot(),analysisFloorHz:floorFor(spec)},reference:refs[key()]||null,source,strikes:[],files:new Set()};$("reftrusted").checked=false;$("refnote").value="";render();return generation;}
   const active=id=>session?.id===id&&generation===id;
   async function arm(){
     if(armed||requesting){finish();return;}const error=inputError();if(error){notify(error);return;}
@@ -355,7 +358,8 @@ function startRingBench({edition,target,build}){
     const max=reading?Math.max(...reading.mag):0,common=reading?recurringPeaks(reading):[],peakMax=reading?Math.max(reading.f0||0,...common.map(p=>p.f)):0;
     const visibleFloor=max*Math.pow(10,-50/20);let lastVisible=0;if(reading)for(let i=0;i<reading.mag.length;i++)if(reading.mag[i]>=visibleFloor)lastVisible=i;
     const signalMax=reading?lastVisible*reading.binHz:0,rawLimit=Math.max(8000,peakMax*1.35,signalMax*1.08,predicted?.[2]*1.08||0),step=rawLimit<=16000?2000:4000;
-    const limit=Math.min(reading?.usableHz||24000,Math.ceil(rawLimit/step)*step);put("spectrumScale","Display 0–"+(limit/1000).toFixed(limit%1000?1:0)+" kHz · "+(reading?"scaled to the measured signal and recurring tones.":"model guides shown before recording."));
+    const limit=Math.min(reading?.usableHz||24000,Math.ceil(rawLimit/step)*step);const floorHz=reading?.strikes?.[0]?.analysisFloorHz;put("spectrumScale","Display 0–"+(limit/1000).toFixed(limit%1000?1:0)+" kHz · "+(reading?"scaled to the measured signal and recurring tones."+(floorHz?" Shaded: below the "+Math.round(floorHz)+" Hz analysis floor, not scored.":""):"model guides shown before recording."));
+    if(floorHz){g.save();g.globalAlpha=.12;g.fillStyle=color;g.fillRect(35,12,Math.min(floorHz,limit)/limit*(W-45),H-40);g.restore();}
     if(reading){g.strokeStyle=color;g.lineWidth=1;g.beginPath();
     for(let px=0;px<W-45;px++){let peak=0;const from=Math.floor(px/(W-45)*limit/reading.binHz),to=Math.max(from+1,Math.ceil((px+1)/(W-45)*limit/reading.binHz));for(let j=from;j<to;j++)peak=Math.max(peak,reading.mag[j]||0);const db=Math.max(-70,20*Math.log10((peak+1e-30)/(max+1e-30))),y=18-db/70*(H-48);if(px)g.lineTo(35+px,y);else g.moveTo(35+px,y);}g.stroke();}
     for(let f=0;f<=limit;f+=step)g.fillText((f/1000)+"k",35+f/limit*(W-45),H-6);

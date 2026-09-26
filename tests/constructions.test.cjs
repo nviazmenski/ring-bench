@@ -110,3 +110,29 @@ test('exports carry plain construction results',()=>{
   assert.equal(out.rows.find(r=>r.id==='tungsten').match.status,'ruled-out');
   assert.equal(out.rows.find(r=>r.id==='tungsten').band.length,2);
 });
+
+// Adding a coin or a construction must never need a hand-set cutoff: the floor is derived, and
+// this checks its guarantee for every catalogue entry, including a Pro-widened geometry family.
+test('analysis floor: a lowest mode hidden below it leaves the next mode below every band, for every coin',()=>{
+  const failures=plain(`flat.flatMap(coin=>[{},{widthMax:.25,ratioMax:2.5}].flatMap(options=>{
+    const c={...spec(coin.n),family:{...FAMILY_DEFAULTS,...options}},floor=analysisFloor(c),screen=constructionScreen(c);
+    const bands=[screen.genuine,...screen.rows.map(r=>r.band)].filter(b=>b.valid);
+    const ratios=bands.flatMap(b=>b.candidates.map(g=>{const f=g.f.slice().sort((x,y)=>x-y);return f[1]/f[0];}));
+    const bad=[];
+    for(const b of bands){
+      if(!(floor.hz*Math.max(...ratios)<b.low))bad.push('floor '+floor.hz+' within one second-mode ratio of a modelled lowest mode '+b.low);
+      for(const r of ratios)if(bandPosition(floor.hz*r,b)!=='anomalous'||floor.hz*r>=b.low)bad.push('next mode '+floor.hz*r+' not below band '+b.low);
+    }
+    return bad.length?[coin.n+JSON.stringify(options)+': '+bad[0]]:[];
+  }))`);
+  assert.deepEqual(failures,[]);
+});
+test('analysis floor keeps the 4 Ducats and sits under the lowest modelled fake',()=>{
+  const f=plain(`Object.fromEntries(['4 Dukata','4 Ducat','Morgan','Krugerrand','Dime clad'].map(n=>[n,{...analysisFloor(spec(n)),genuine:geometryFamily(spec(n)).low}]))`);
+  assert.ok(f['4 Dukata'].hz>300&&f['4 Dukata'].hz<f['4 Dukata'].genuine/1.8,'4 Dukata '+f['4 Dukata'].hz);
+  assert.ok(f['4 Ducat'].hz>300&&f['4 Ducat'].hz<f['4 Ducat'].genuine/1.8,'4 Ducat '+f['4 Ducat'].hz);
+  // A lead–tin casting of a Morgan rings far below silver, so it, not the genuine band, sets the floor.
+  assert.ok(f.Morgan.lowestHz<f.Morgan.genuine*.4&&f.Morgan.hz<f.Morgan.lowestHz/1.8);
+  assert.ok(f.Krugerrand.hz>2000&&f['Dime clad'].hz>5000,'coins with no low-lying fake get a high floor');
+  assert.equal(plain(`analysisFloor({...spec('Morgan'),rimThickness:.3}).hz`),0,'no admissible shape leaves the detector minimum in charge');
+});

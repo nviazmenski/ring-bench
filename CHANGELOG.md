@@ -2,6 +2,16 @@
 
 Newest first. Each section describes the release it names; behaviour in older sections may since have changed. Current behaviour is in [README.md](README.md) and [MODEL.md](MODEL.md). Git tags `lite-X.Y` and `pro-X.Y` mark each release.
 
+## Pro 4.10 / Lite 3.7 — analysis floor
+
+- **Strike sounds no longer pose as the coin.** A striker that rings for about 100 ms at 200–300 Hz repeated across taps, became the lowest repeatable tone and failed genuine coins. The detector now ignores tones below a floor derived for each coin: the lowest band among the genuine coin and its modelled fakes, divided by the largest second-to-lowest mode ratio (1.72–1.87) and less the 2% edge guard. Anything hidden by the floor still shows its next mode below every band, so the floor cannot produce a PASS.
+- **4 Ducats kept.** Their bands start at 662 and 696 Hz; their floors are 347 and 365 Hz. The Morgan's floor is 766 Hz, set by a lead–tin casting rather than the genuine band. New catalogue entries and constructions get a floor automatically, and a test checks the guarantee for every entry.
+- **Visible, not scored.** Tones above the room noise but under the floor are listed for each tap as "Below analysis floor" in the evidence and shaded on Pro's spectrum. The floor limits the peak search, not the audio, so no filter ringing is introduced.
+- A loud thud also no longer sets the detector's −42 dB peak threshold or its prominence reference.
+- Detector `resolved-peaks-v3`. Each tap's settings and measurement exports record `analysisFloorHz`. Saved recordings keep the detector that measured them.
+- The model notes no longer say layered construction is unmodelled; the clad presets have used an equivalent layered plate since 4.9.
+- The verdict rules and bands are unchanged.
+
 ## Pro 4.9 / Lite 3.6 — fakes the pitch can rule out
 
 - **Counterfeit construction screen**, in both editions. For gold and silver coins, a new card lists fakes made to the coin's weight and diameter:
