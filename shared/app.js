@@ -18,7 +18,7 @@ function startRingBench({edition,target,build}){
     const coin=flat[coinIndex],k=$("alloy")?.value||coin.a,a=ALLOYS[k];
     return {name:coin.n,key:k,mass:finite("mass",coin.m),dia:finite("dia",coin.d),rho:rhoOf(k),E:finite("emod",a.E),nu:finite("nu",a.nu),
       qmat:finite("qmat",2000),sup:$("grip")?.value||"tongs-rubber",hmm:0,
-      rimThickness:$("tsrc")?.value==="caliper"?finite("trim",0):0,plateModel:coin.solid&&$("plateModel")?.value==="solid"?coin.solid:"plate",support:$("support")?.value||"centre",
+      rimThickness:$("tsrc")?.value==="caliper"?finite("trim",0):0,plateModel:$("plateModel")?.value==="solid"?coin.solid||"generic-solid":"plate",support:$("support")?.value||"centre",
       family:{...FAMILY_DEFAULTS,widthMax:finite("widthMax",16)/100,ratioMax:finite("ratioMax",1.75),ePct:finite("ePct",5),rhoPct:finite("rhoPct",1),massPct:finite("massPct",1),diaPct:finite("diaPct",.5)}};
   };
   const snapshot=()=>{const c=current();return {coin:c.name,alloy:c.key,mass:c.mass,diameter:c.dia,E:c.E,nu:c.nu,materialQ:c.qmat,support:c.sup,
@@ -63,8 +63,7 @@ function startRingBench({edition,target,build}){
     invalidate("Tap gently about 15 cm from the microphone.");coinIndex=i;
     const coin=flat[i],a=ALLOYS[coin.a];
     const group=COINS.find(g=>g.items.includes(coin));$("region").value=group.region;populateCoins(group.region);$("coin").value=String(i);
-    for(const [id,v] of Object.entries({mass:coin.m,dia:coin.d,alloy:coin.a,emod:a.E,nu:a.nu,qmat:2000,grip:"tongs-rubber",tsrc:"mass",trim:"",trans:0,widthMax:16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,specimenId:"",plateModel:"plate",support:"centre"}))if($(id))$(id).value=v;
-    if($("solidControls"))$("solidControls").hidden=!coin.solid;
+    for(const [id,v] of Object.entries({mass:coin.m,dia:coin.d,alloy:coin.a,emod:a.E,nu:a.nu,qmat:2000,grip:"tongs-rubber",tsrc:"mass",trim:"",trans:0,widthMax:16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,specimenId:""}))if($(id))$(id).value=v;
     for(const id of ["massMeasured","diaMeasured","thicknessMeasured","reftrusted"])if($(id))$(id).checked=false;
     put("refnote","");if($("refnote"))$("refnote").value="";
     try{localStorage.setItem("ringbench."+edition+".coin",coin.n);}catch{}
@@ -161,7 +160,7 @@ function startRingBench({edition,target,build}){
     const hz=f=>String(Math.round(f)),pct=x=>Math.round(100*x)+"%",range=r.band.valid?hz(r.band.low)+"–"+hz(r.band.high)+" Hz":"";
     const thick=r.band.valid&&Math.abs(r.thickness-1)>=.03?" At this weight it would be "+r.thickness.toFixed(2)+"× as thick as a genuine coin.":"";
     const extra=(r.magnetic?" A magnet also catches it.":"")+thick;
-    if(r.separation.state==="no-shape"||r.match?.status==="no-shape")return {verdict:"thick",chip:"Calipers catch it",detail:"At this weight it would be "+r.thickness.toFixed(2)+"× as thick as a genuine coin, which is beyond the plate model."};
+    if(r.separation.state==="no-shape"||r.match?.status==="no-shape")return {verdict:"thick",chip:"Calipers catch it",detail:"At this weight it would be "+r.thickness.toFixed(2)+"× as thick as a genuine coin, which is beyond the "+(r.band.source==="solid"?"solid model's range.":"plate model.")};
     const m=r.match,f=screen.reading?.f;
     if(!m){
       const s=r.separation;
@@ -229,10 +228,10 @@ function startRingBench({edition,target,build}){
     put("catalogue",nom.m+" g · "+nom.d+" mm · "+ALLOYS[nom.a].n);put("catalogueNote",nom.note||"");
     put("modelFrequency",family.valid?Math.round(family.low)+"–"+Math.round(family.high)+" Hz":"No admissible geometry");
     put("modelThickness","Volume-equivalent thickness "+family.h.toFixed(3)+" mm");
-    put("geometrySource",family.source==="solid"?family.candidates.length+" cross-sections ("+new Set(family.candidates.map(g=>g.sample)).size+" sampled Morgan profiles) · rim "+family.rims[0].toFixed(2)+"–"+family.rims[1].toFixed(2)+" mm "+(family.rimMeasured?"from your caliper reading":"catalogue prior")+(family.valid?"":" · "+family.reason):family.candidates.length+" sampled shapes · "+(c.rimThickness?"rim thickness constrained by your entry":"mass conserved across centre/rim shapes"));
+    put("geometrySource",family.source==="solid"?family.candidates.length+" cross-sections ("+new Set(family.candidates.map(g=>g.sample)).size+" sampled "+family.crossSectionName+" profiles) · rim "+family.rims[0].toFixed(2)+"–"+family.rims[1].toFixed(2)+" mm "+(family.rimMeasured?"from your caliper reading":"prior, "+(family.rims[0]/family.h).toFixed(2)+"–"+(family.rims[1]/family.h).toFixed(2)+"× the volume-equivalent thickness")+(family.valid?"":" · "+family.reason):family.candidates.length+" sampled shapes · "+(c.rimThickness?"rim thickness constrained by your entry":"mass conserved across centre/rim shapes"));
     if($("modelNote"))put("modelNote",family.source==="solid"?"Experimental 3D elastic solid: shear, rotary inertia, die basin, smeared relief, denticles and rim are modelled; the cross-section is averaged around the coin, so split pairs are not predicted. Mode ranges below use nominal material values; the main band also propagates the stated uncertainties.":"Experimental concentric centre/rim model. Relief, support-induced pitch shifts and layered construction are not represented. Mode ranges below use nominal material values; the main band also propagates the stated uncertainties.");
     if($("familyBounds"))$("familyBounds").hidden=family.source==="solid";
-    put("solidNote",!flat[coinIndex].solid?"":c.plateModel==="plate"?"The experimental 3D model includes shear, rotary inertia, the die basin, relief and denticles. It changes Pro's band and fit for this coin only.":"Experimental: a 3D elastic solid with the Morgan cross-section. Split tones are scored at their centroid"+(c.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are shown but not scored":"")+". Fakes in the construction screen still use the thin-plate model.");
+    put("solidNote",c.plateModel==="plate"?"The experimental 3D model includes shear, rotary inertia, the die basin, relief, the inner border and the rim. It changes Pro's band, fit and construction screen; the choice stays as you switch coins.":"Experimental: a 3D elastic solid with the "+(family.crossSectionName||"generic coin")+" cross-section"+(flat[coinIndex].solid?"":" (no coin-specific cross-section yet)")+". Split tones are scored at their centroid"+(c.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are shown but not scored":"")+". The fakes in the construction screen use the same model.");
     table("modeRows",family.valid?MODES.map((m,i)=>{
       const fs=family.candidates.map(g=>g.f[i]),rs=family.candidates.map(g=>g.f[i]/Math.min(...g.f));
       return [m.id,Math.round(Math.min(...fs))+"–"+Math.round(Math.max(...fs))+" Hz",Math.min(...rs).toFixed(3)+"–"+Math.max(...rs).toFixed(3)];
@@ -244,8 +243,8 @@ function startRingBench({edition,target,build}){
       // Cross-sections whose three or more fitted modes all agree within 0.5%: their ratios pin the shape, and the
       // lowest mode then implies an effective modulus at the assumed density (f scales with √E).
       const close=(fit.supported||[]).filter(x=>x.matches.length>=3&&x.matches.every(m=>Math.abs(m.measured/(m.predicted*x.freeScale)-1)<=.005));
-      const E=close.map(x=>c.E*x.freeScale**2),closeText=close.length?" Closest fits (every fitted mode within 0.5%): die basin "+Math.min(...close.map(x=>x.geometry.params.s)).toFixed(2)+"–"+Math.max(...close.map(x=>x.geometry.params.s)).toFixed(2)+" mm per side; the lowest mode then implies an effective modulus of "+Math.min(...E).toFixed(0)+"–"+Math.max(...E).toFixed(0)+" GPa at the assumed density (entered "+c.E+" GPa). Descriptive only; not scored.":"";
-      put("geometryUncertainty",new Set(gs.map(g=>g.sample)).size+" of "+new Set(family.candidates.map(g=>g.sample)).size+" sampled Morgan cross-sections remain possible: die basin "+range(g=>g.params.s)+" mm per side, rim "+range(g=>g.rim)+" mm, through-thickness shear "+range(g=>g.params.g)+"× isotropic. This does not resolve cross-sections outside the sampled priors."+closeText);
+      const E=close.map(x=>c.E*x.freeScale**2),closeText=close.length?" Closest fits (every fitted mode within 0.5%): die basin "+Math.min(...close.map(x=>x.geometry.params.basinMm)).toFixed(2)+"–"+Math.max(...close.map(x=>x.geometry.params.basinMm)).toFixed(2)+" mm per side; the lowest mode then implies an effective modulus of "+Math.min(...E).toFixed(0)+"–"+Math.max(...E).toFixed(0)+" GPa at the assumed density (entered "+c.E+" GPa). Descriptive only; not scored.":"";
+      put("geometryUncertainty",new Set(gs.map(g=>g.sample)).size+" of "+new Set(family.candidates.map(g=>g.sample)).size+" sampled "+family.crossSectionName+" cross-sections remain possible: die basin "+range(g=>g.params.basinMm)+" mm per side, rim "+range(g=>g.rim)+" mm, through-thickness shear "+range(g=>g.params.g)+"× isotropic. This does not resolve cross-sections outside the sampled priors."+closeText);
     }else if(unique.size){
       const gs=[...unique.values()];
       put("geometryUncertainty",unique.size+" sampled shapes remain possible; rim width "+(100*Math.min(...gs.map(g=>g.width))).toFixed(1)+"–"+(100*Math.max(...gs.map(g=>g.width))).toFixed(1)+"% of radius, rim/centre ratio "+Math.min(...gs.map(g=>g.ratio)).toFixed(2)+"–"+Math.max(...gs.map(g=>g.ratio)).toFixed(2)+". This does not resolve geometry outside the sampled family.");
@@ -272,8 +271,8 @@ function startRingBench({edition,target,build}){
   function comparison(c){
     const index=finite("cmpCoin",coinIndex),nom=flat[index],same=index===coinIndex,k=$("cmpAlloy").value,a=ALLOYS[k],rho=rhoOf(k);
     const mass=same?(c.hmm>0?Math.PI*(c.dia/20)**2*c.hmm/10*rho:c.mass*rho/c.rho):nom.m*rho/rhoOf(nom.a);
-    // Another coin keeps neither this coin's rim reading nor a cross-section model it does not have.
-    return {...c,key:k,mass,dia:same?c.dia:nom.d,rho,E:a.E,nu:a.nu,hmm:same?c.hmm:0,rimThickness:same?c.rimThickness:0,plateModel:same||nom.solid===c.plateModel?c.plateModel:"plate"};
+    // Another coin keeps neither this coin's rim reading nor its cross-section family.
+    return {...c,key:k,mass,dia:same?c.dia:nom.d,rho,E:a.E,nu:a.nu,hmm:same?c.hmm:0,rimThickness:same?c.rimThickness:0,plateModel:c.plateModel==="plate"?"plate":nom.solid||"generic-solid"};
   }
   function audio(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();ac.resume();return ac;}
   function playPCM(y,sr,at=0){const ctx=audio(),b=ctx.createBuffer(1,y.length,sr);b.copyToChannel(y,0);const s=ctx.createBufferSource();s.buffer=b;s.connect(ctx.destination);s.start(at||ctx.currentTime);playing.push(s);return y.length/sr;}
@@ -281,7 +280,8 @@ function startRingBench({edition,target,build}){
   function floorFor(spec){try{return analysisFloor(spec).hz;}catch{return 0;}}
   function solidAssumptions(band){
     const o=band.options,n=new Set(band.candidates.map(g=>g.sample)).size;
-    return "Experimental 3D elastic solid: "+n+" sampled Morgan cross-sections with a die basin of 0–0.16 mm per side, smeared relief and denticles, and a solid rim of "+band.rims[0].toFixed(2)+"–"+band.rims[1].toFixed(2)+" mm. Assumed uncertainty: modulus ±"+o.ePct+"%, density ±"+o.rhoPct+"%, mass ±"+o.massPct+"%, diameter ±"+o.diaPct+"%. Edge guard ±2%. "+(band.valid?"":band.reason+" ")+"Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(current())))+" Hz are treated as strike or support sound, never as the coin.";
+    const basin=band.crossSection==="morgan-solid"?"0–0.16 mm":"0–"+(.07*band.h).toFixed(2)+" mm";
+    return "Experimental 3D elastic solid: "+n+" sampled "+band.crossSectionName+" cross-sections with a die basin of "+basin+" per side, smeared relief and inner border, and a solid rim of "+band.rims[0].toFixed(2)+"–"+band.rims[1].toFixed(2)+" mm. Assumed uncertainty: modulus ±"+o.ePct+"%, density ±"+o.rhoPct+"%, mass ±"+o.massPct+"%, diameter ±"+o.diaPct+"%. Edge guard ±2%. "+(band.valid?"":band.reason+" ")+"Tones below "+Math.round(Math.max(PEAK_SEARCH_MIN_HZ,floorFor(current())))+" Hz are treated as strike or support sound, never as the coin.";
   }
   function newSession(source){invalidate();const spec=current();session={id:generation,spec,settings:{...snapshot(),analysisFloorHz:floorFor(spec)},reference:refs[key()]||null,source,strikes:[],files:new Set()};$("reftrusted").checked=false;$("refnote").value="";render();return generation;}
   const active=id=>session?.id===id&&generation===id;

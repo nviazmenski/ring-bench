@@ -7,7 +7,7 @@ These Python scripts (numpy, scipy) back the numbers in [MODEL.md](../../MODEL.m
 | `axi.py` | Prototype axisymmetric 3D finite-element solver for uniform discs; thin-limit and mesh-convergence checks. |
 | `ritz3d.py` | Independent check: spectral Ritz solution of 3D elasticity (Legendre polynomials in r², exact axis regularity). It shares no code with the finite-element solvers. |
 | `coinfe.py` | Two-zone finite-element solver (solid core, smeared upper layer) used for the cross-section studies. |
-| `morgan.py` | The Morgan cross-section: die basin, smeared relief and denticles, solid rim, mass conserved. `pro/solid.js` ports it and gives identical eigenvalues. |
+| `morgan.py` | The Morgan cross-section: die basin, smeared relief and denticles, solid rim, mass conserved. `pro/solid.js` ports it (`coinBuild`) and gives identical eigenvalues. The generic family (Pro 4.12) exists only in JavaScript: `SOLID_FAMILY_PARAMS` in `pro/solid.js` and its priors in `scripts/solid-tables.mjs`. |
 | `grip.py` | Centre-support study: soft pads (springs) and a rigid clamp on the Morgan cross-section. |
 | `recordings.py` | Ring tones in tap recordings: frequency, early/late level, decay time and Q. |
 

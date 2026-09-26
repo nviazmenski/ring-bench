@@ -29,9 +29,8 @@ function constructionsFor(c){const a=ALLOYS[c.key];return a&&!a.layers?CONSTRUCT
 // The genuine metal as entered, with the entered modulus and density uncertainty.
 function genuineMaterial(c){return {rho:c.rho,E:c.E,nu:c.nu,ePct:c.family?.ePct??FAMILY_DEFAULTS.ePct,rhoPct:c.family?.rhoPct??FAMILY_DEFAULTS.rhoPct};}
 function coreMaterial(k){const a=ALLOYS[k];return {rho:rhoOf(k),E:a.E,nu:a.nu,ePct:a.ePct??FAMILY_DEFAULTS.ePct,rhoPct:a.rhoPct??FAMILY_DEFAULTS.rhoPct};}
-// Same mass, diameter and rim constraint as the coin under test; only the material changes.
-// Fakes always use the thin-plate family: the experimental solid tables cover only the genuine alloy's range.
-function asSpec(c,m,key){return {...c,key,rho:m.rho,E:m.E,nu:m.nu,plateModel:"plate",family:{...FAMILY_DEFAULTS,...c.family,ePct:m.ePct,rhoPct:m.rhoPct}};}
+// Same mass, diameter, rim constraint and plate model as the coin under test; only the material changes.
+function asSpec(c,m,key){return {...c,key,rho:m.rho,E:m.E,nu:m.nu,family:{...FAMILY_DEFAULTS,...c.family,ePct:m.ePct,rhoPct:m.rhoPct}};}
 // A shell whose faces take fraction x of the thickness. Uncertainty stacks linearly by
 // each layer's share of the stiffness and the mass, like the other nuisance terms.
 function shellSpec(c,con,x){

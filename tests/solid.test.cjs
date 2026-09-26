@@ -1,4 +1,4 @@
-// Experimental 3D solid model (Pro): solver physics, Morgan cross-section, tables, family rules and a real recording.
+// Experimental 3D solid model (Pro): solver physics, cross-sections, tables, family rules, the catalogue and a real recording.
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),assert=require('node:assert/strict'),{test}=require('node:test');
 const ctx=vm.createContext({console});
 for(const f of ['shared/coins','shared/model','pro/solid','pro/solid-tables','shared/geometry','shared/constructions','shared/acoustics','shared/references'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f+'.js'),'utf8'),ctx);
@@ -26,47 +26,75 @@ test('solid solver matches an independent spectral 3D solution for thick discs',
   const bias=run(`solidLambda2({rb:[0,1],tc:[.04,.04],tt:[.06,.06],mats:[[1,1,1]]},.37).map((v,i)=>lam2(i,.37)/v-1)`);
   assert.ok(bias[0]>.018&&bias[0]<.024&&bias[2]>.038&&bias[2]<.046&&bias[4]>.06&&bias[4]<.07,JSON.stringify(bias));
 });
-test('Morgan cross-section conserves mass, keeps the measured rim and refuses a rim too thin for the mass',()=>{
+test('cross-sections conserve mass, keep the measured rim and refuse a rim too thin for the mass',()=>{
   run(`globalThis.p=morganProfile(.119,.126)`);
   assert.ok(Math.abs(run('p.hbar')-.119)<1e-9);
   assert.ok(Math.abs(run('Math.max(...p.tt)')-.063)<1e-12);
   assert.ok(run('p.fieldCentre<p.fieldEdge&&p.fieldEdge<.126'));
   assert.equal(run('morganProfile(.119,.110)'),null);
+  // Generic family: legend band placed between the device and the border, basin relative to the thickness.
+  run(`globalThis.q=coinProfile(.06,.08,{s:.003,wR:.08,wD:.04,rc:.55,rL0:.59,rL1:.86,fc:.6,phic:.4})`);
+  assert.ok(Math.abs(run('q.hbar')-.06)<1e-9&&Math.abs(run('Math.max(...q.tt)')-.04)<1e-12);
 });
-test('committed solid tables match the solver',()=>{
-  // Two entries recomputed from scratch; scripts/solid-tables.mjs --check does the same outside the test suite.
-  for(const [si,ih,ir,iv] of [[0,1,1,1],[39,2,3,0]]){
-    const at=run(`(()=>{const T=MORGAN_SOLID_TABLE,G=T.grid,x=T.samples[${si}],v=Object.fromEntries(T.keys.map((k,i)=>[k,x[i]]));
-      const params={s:v.s/T.radiusMm,wR:v.wR,wD:v.wD,fD:v.fD,phiD:v.phiD,fc:v.fc,phic:v.phic,rc:v.rc,fL:v.fL,phiL:v.phiL,beta:v.betaFrac*Math.min(v.phic,v.phiL,v.phiD)};
-      const p=morganProfile(G.hbar[${ih}],G.rim[${ir}]*G.hbar[${ih}],params),lam=p&&solidLambda2(p,G.nu[${iv}],{g:v.g,mesh:T.mesh});
-      const k=((((${si}*G.hbar.length+${ih})*G.rim.length+${ir})*G.nu.length+${iv})*6);return {lam,stored:T.data.slice(k,k+6).map(x=>x/T.scale)};})()`);
-    assert.ok(at.lam,'entry must be admissible');
-    at.lam.forEach((v,i)=>assert.ok(Math.abs(at.stored[i]/v-1)<2e-5,si+' mode '+i));
+test('solid tables decode, and a lookup at a grid node returns the stored entry',()=>{
+  // scripts/solid-tables.mjs --check (run in CI) recomputes entries and off-grid points from the solver.
+  for(const name of ['morgan-solid','generic-solid']){
+    const t=run(`(()=>{const t=solidTable('${name}'),G=t.grid,si=t.samples.length-1;let found=null;
+      for(let ih=0;ih<G.hbar.length&&!found;ih++)for(let ir=0;ir<G.rim.length&&!found;ir++){const e=solidTableEntry(t,si,ih,ir,2);if(e)found={e,got:solidLookup(t,si,G.hbar[ih],G.rim[ir],G.nu[2])};}
+      return {found,interpolationError:t.interpolationError,count:t.values.length,expected:t.samples.length*G.hbar.length*G.rim.length*G.nu.length*6,ranges:t.ranges};})()`);
+    assert.equal(t.count,t.expected);
+    assert.ok(t.found,name+' has admissible entries');
+    t.found.e.forEach((v,i)=>{assert.ok(Math.abs(t.found.got[i]/v-1)<1e-9);assert.ok(v>=t.ranges[i][0]-1e-9&&v<=t.ranges[i][1]+1e-9);});
+    assert.ok(t.interpolationError>0&&t.interpolationError<2e-3,name+' interpolation error '+t.interpolationError);
   }
 });
-test('solid family: band, scored modes by support, and fakes stay on the thin plate',()=>{
-  assert.ok(run(`geometryFamily(spec()).valid&&geometryFamily(spec()).source==='solid'`));
+test('solid family: band, scored modes by support, rim prior, and fakes on the same model',()=>{
+  assert.ok(run(`geometryFamily(spec()).valid&&geometryFamily(spec()).source==='solid'&&geometryFamily(spec()).crossSection==='morgan-solid'`));
   assert.equal(run(`JSON.stringify(geometryFamily(spec()).scored)`),'[true,false,true,false,true,true]');
   assert.equal(run(`JSON.stringify(geometryFamily(spec({support:'other'})).scored)`),'[true,true,true,true,true,true]');
   assert.ok(run(`modeEnvelopes(spec())[1].supportAffected&&!modeEnvelopes(spec())[0].supportAffected`));
-  // A measured rim narrows the band; the catalogue prior spans 2.35–2.85 mm.
+  // A measured rim narrows the band; unmeasured, the prior is a ratio of the hypothesis's own thickness.
   const measured=run(`geometryFamily(spec({rimThickness:2.4}))`),prior=run(`geometryFamily(spec())`);
   assert.ok(measured.high-measured.low<prior.high-prior.low);
   assert.ok(measured.candidates.every(g=>g.rim>=2.37-1e-9&&g.rim<=2.43+1e-9));
-  assert.ok(run(`constructionScreen(spec()).rows.every(r=>r.band.source==='model')`));
+  assert.ok(Math.abs(prior.rims[0]/prior.h-1.034)<1e-9&&Math.abs(prior.rims[1]/prior.h-1.254)<1e-9);
+  // Fakes use the coin's model; with a measured rim a thicker fake has no cross-section, so calipers catch it.
+  assert.ok(run(`constructionScreen(spec()).rows.every(r=>r.band.source==='solid')`));
+  assert.ok(run(`constructionScreen(spec({rimThickness:2.4})).rows.filter(r=>r.core==='brass').every(r=>!r.band.valid)`));
   // Outside the tables the family is invalid with a reason, never extrapolated.
-  const outside=run(`geometryFamily(spec({nu:.30}))`);assert.equal(outside.valid,false);assert.match(outside.reason,/outside the solid model/);
+  const outside=run(`geometryFamily(spec({nu:.25}))`);assert.equal(outside.valid,false);assert.match(outside.reason,/outside the solid model/);
+  const thick=run(`geometryFamily(spec({rho:4}))`);assert.equal(thick.valid,false);assert.match(thick.reason,/thicker than the solid model/);
   // The thin-plate family is unchanged when the solid model is not selected.
   assert.equal(run(`geometryFamily(spec({plateModel:'plate'})).source`),'model');
   assert.equal(run(`geometryFamily(spec({plateModel:'plate'})).candidates.length`),21);
 });
+test('every catalogue coin has a solid band, a construction screen and a sound analysis floor',()=>{
+  const rows=run(`flat.map(c=>{const a=ALLOYS[c.a],s={name:c.n,key:c.a,mass:c.m,dia:c.d,rho:rhoOf(c.a),E:a.E,nu:a.nu,support:'centre',rimThickness:0,plateModel:c.solid||'generic-solid',family:{...FAMILY_DEFAULTS}};
+    const f=geometryFamily(s),scr=constructionScreen(s),floor=analysisFloor(s),bands=[scr.genuine,...scr.rows.map(r=>r.band)].filter(b=>b.valid);
+    return {n:c.n,valid:f.valid,cross:f.crossSection,floor:floor.hz,lowest:Math.min(...bands.map(b=>b.low)),ratio:floor.secondModeRatio,rows:scr.rows.length};})`);
+  assert.equal(rows.length,105);
+  for(const r of rows){
+    assert.ok(r.valid,r.n);
+    assert.equal(r.cross,/^Morgan/.test(r.n)?'morgan-solid':'generic-solid');
+    // Every modelled lowest mode is at least a second-mode ratio above the floor (MODEL.md, "Analysis floor").
+    assert.ok(r.floor>0&&r.floor*r.ratio<=r.lowest*(1+1e-9),r.n);
+  }
+});
+test('sampled cross-sections of very different coins fit as model consistent under the solid model',()=>{
+  for(const name of ['Krugerrand','Dime 90%','4 Ducat','Crown · sterling']){
+    const res=run(`(()=>{const c=flat.find(x=>x.n.startsWith(${JSON.stringify(name)})),a=ALLOYS[c.a],s={name:c.n,key:c.a,mass:c.m,dia:c.d,rho:rhoOf(c.a),E:a.E,nu:a.nu,support:'centre',rimThickness:0,plateModel:c.solid||'generic-solid',family:{...FAMILY_DEFAULTS}};
+      const f=geometryFamily(s),g=f.candidates[Math.floor(f.candidates.length/2)],x=.02,modes=[0,2,4].map(i=>g.f[i]).filter(v=>v<20000);
+      const e=screenReading(readingOf([g.f[0]*Math.sqrt(1-x),g.f[0]*Math.sqrt(1+x),...modes.slice(1)]),s,true,3);return {d:e.diagnostic,reason:e.reason,n:modes.length};})()`);
+    if(res.n>=3)assert.equal(res.d,'model-consistent',name+': '+res.reason);
+  }
+});
 test('a sampled cross-section with a split lowest mode is model consistent; shifted upper modes are not',()=>{
-  run(`globalThis.g=geometryFamily(spec()).candidates[40];globalThis.split=(f,x)=>[f*Math.sqrt(1-x),f*Math.sqrt(1+x)];`);
+  run(`globalThis.g=(f=>f.candidates[Math.floor(f.candidates.length/2)])(geometryFamily(spec()));globalThis.split=(f,x)=>[f*Math.sqrt(1-x),f*Math.sqrt(1+x)];`);
   // (2,0) split 2.8% in ω² around the model value, as rolling texture or relief splits it; (3,0) and (4,0) exact.
   const good=run(`screenReading(readingOf([...split(g.f[0],.028),g.f[2],g.f[4]]),spec(),true,3)`);
   assert.equal(good.diagnostic,'model-consistent',good.reason);
   assert.ok(Math.abs(good.fit.best.matches[0].measured/(good.fit.best.matches[0].predicted*good.fit.best.scale)-1)<.002);
-  // The family spans (3,0)/(2,0) 2.29–2.42 under the catalogue rim prior, and the fit adds its 3% tolerance.
+  // The family's (3,0)/(2,0) spread under the rim prior, plus the 3% tolerance, still excludes shifts this large.
   const bad=run(`screenReading(readingOf([...split(g.f[0],.028),g.f[2]*1.12,g.f[4]*1.15]),spec(),true,3)`);
   assert.notEqual(bad.diagnostic,'model-consistent');
   // Under a centre support a (0,1) tone is explained by its widened envelope but never counted as a fitted mode.
