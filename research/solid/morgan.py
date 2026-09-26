@@ -24,7 +24,7 @@ def build(TFe,TR,p):
         if r<rF: return 0,VOID
         if r<1-p['wR']: return p['fD'],smeared(p['phiD'],p['beta'])
         return 1.0,SOLID
-    def top(r,f): F=field(r); return F+max(f*(TR-F),EPS*F)
+    def top(r,f): F=field(r); return F+f*(TR-F)+EPS*F*(1-f)   # additive layer, none on the rim: smooth, rim exact
     # evaluate top at breakpoints using the band on the relevant side; ramps: use band of taller neighbour
     rb=pts; tc=[field(r) for r in rb]; tt=[]; mats=[]
     for k in range(len(rb)-1):

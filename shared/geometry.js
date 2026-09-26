@@ -53,54 +53,41 @@ function rimEigenvalues(nu,width,ratio,terms=6){
   if(rimEigenCache.size>20000)rimEigenCache.clear();rimEigenCache.set(key,result);return result;
 }
 function familyOptions(c){return {...FAMILY_DEFAULTS,...c.family};}
-// ───────── experimental 3D solid family (Pro; catalogue entries with a solid cross-section model) ─────────
-// Precomputed plate-equivalent λ² from pro/solid-tables.js (Pro only), interpolated in volume-equivalent thickness/radius,
-// rim/volume-equivalent thickness and ν. Each table sample is one admissible cross-section from the priors in
-// MODEL.md; the rim thickness is the entered caliper reading ±SOLID_RIM_TOLERANCE_MM, or the catalogue prior.
-const SOLID_TABLES={"morgan-solid":()=>typeof MORGAN_SOLID_TABLE==="undefined"?null:MORGAN_SOLID_TABLE};
-const SOLID_RIM_PRIOR_MM={"morgan-solid":[2.35,2.85]};
+// ───────── experimental 3D solid family (Pro) ─────────
+// Plate-equivalent λ² from pro/solid-tables.js (Pro only), interpolated in volume-equivalent thickness/radius,
+// rim/volume-equivalent thickness and ν by solidLookup in pro/solid.js. Each table sample is one admissible
+// cross-section from the priors in MODEL.md. The Morgan has its own cross-section family; every other coin uses the
+// generic one. The rim thickness is the entered caliper reading ±SOLID_RIM_TOLERANCE_MM, or a prior ratio to the
+// hypothesis's own volume-equivalent thickness, so a fake of the same weight is judged by the same rule.
+const SOLID_RIM_PRIOR={"morgan-solid":[1.034,1.254],"generic-solid":[1.03,1.45]};
 const SOLID_RIM_TOLERANCE_MM=.03;
-// Table interpolation (≤1.2e-4 measured), rounding and mesh error together stay under this relative bound.
-const SOLID_NUMERICAL_ERROR=2e-4;
+// Mesh and quantisation error; each table adds its own measured interpolation error on top.
+const SOLID_MIN_NUMERICAL_ERROR=2e-4;
 // A centre support (Pocket Pinger, fingertip, tongs) touches the axisymmetric (0,s) and tilting (1,s) modes where
 // they move, damping and stiffening them; the n≥2 modes have zero displacement and slope at the centre.
 const SOLID_SUPPORT_AFFECTED=[1,3],SOLID_SUPPORT_SHIFT=.15;
-function solidLookup(table,si,hbar,rim,nu){
-  const G=table.grid,axes=[[G.hbar,hbar],[G.rim,rim],[G.nu,nu]],cell=[];
-  for(const [xs,x] of axes){
-    if(!(x>=xs[0]-1e-12&&x<=xs.at(-1)+1e-12))return null;
-    let k=0;while(k<xs.length-2&&x>xs[k+1])k++;cell.push([k,Math.min(1,Math.max(0,(x-xs[k])/(xs[k+1]-xs[k])))]);
-  }
-  const out=[0,0,0,0,0,0],[H,R,V]=[G.hbar.length,G.rim.length,G.nu.length];
-  for(let corner=0;corner<8;corner++){
-    const idx=cell.map(([k,t],d)=>k+(corner>>d&1)),w=cell.reduce((s,[k,t],d)=>s*((corner>>d&1)?t:1-t),1);
-    if(w===0)continue;
-    const at=(((si*H+idx[0])*R+idx[1])*V+idx[2])*6;
-    for(let m=0;m<6;m++){const v=table.data[at+m];if(!v)return null;out[m]+=w*v/table.scale;}
-  }
-  return out;
-}
+const SOLID_FAMILY_NAMES={"morgan-solid":"Morgan","generic-solid":"generic coin"};
 function solidFamily(c,o,h,scale,lowScale,highScale){
-  const table=SOLID_TABLES[c.plateModel]?.(),a=c.dia/2,candidates=[];
-  const base={model:table?.model||c.plateModel,solver:table?.solver,options:o,candidates,h,lowScale,highScale,source:"solid",edge:o.edgePct/100,
+  const table=typeof solidTable==="function"?solidTable(c.plateModel):null,a=c.dia/2,candidates=[];
+  const base={model:table?.model||c.plateModel,solver:table?.solver,crossSection:c.plateModel,crossSectionName:SOLID_FAMILY_NAMES[c.plateModel]||c.plateModel,options:o,candidates,h,lowScale,highScale,source:"solid",edge:o.edgePct/100,
     support:c.support==="other"?"other":"centre"};
   base.scored=[0,1,2,3,4,5].map(i=>base.support!=="centre"||!SOLID_SUPPORT_AFFECTED.includes(i));
   if(!table)return {...base,low:NaN,high:NaN,valid:false,reason:"The solid model tables are not loaded."};
-  const hbar=h/a,prior=SOLID_RIM_PRIOR_MM[c.plateModel],measured=c.rimThickness>0;
-  const [lo,hi]=measured?[c.rimThickness-SOLID_RIM_TOLERANCE_MM,c.rimThickness+SOLID_RIM_TOLERANCE_MM]:prior;
+  const hbar=h/a,measured=c.rimThickness>0,numericalError=Math.max(SOLID_MIN_NUMERICAL_ERROR,table.interpolationError||0);
+  const [lo,hi]=measured?[c.rimThickness-SOLID_RIM_TOLERANCE_MM,c.rimThickness+SOLID_RIM_TOLERANCE_MM]:SOLID_RIM_PRIOR[c.plateModel].map(r=>r*h);
   const rims=[...new Set([lo,...table.grid.rim.map(r=>r*h).filter(t=>t>lo&&t<hi),measured?c.rimThickness:hi,hi])].sort((x,y)=>x-y);
   table.samples.forEach((x,si)=>{
-    const params=Object.fromEntries(table.keys.map((k,i)=>[k,x[i]]));
+    const params=Object.fromEntries(table.keys.map((k,i)=>[k,x[i]])),basinMm=table.basin==="mm"?params.s:params.sRel*h;
     for(const rim of rims){
       const lam=solidLookup(table,si,hbar,rim/h,c.nu);
-      if(lam)candidates.push({sample:si,params,rim,width:params.wR,ratio:rim/h,f:lam.map(v=>v*scale),errors:lam.map(()=>SOLID_NUMERICAL_ERROR),numericalError:SOLID_NUMERICAL_ERROR});
+      if(lam)candidates.push({sample:si,params:{...params,basinMm},rim,width:params.wR,ratio:rim/h,f:lam.map(v=>v*scale),errors:lam.map(()=>numericalError),numericalError});
     }
   });
   const low=candidates.length?Math.min(...candidates.map(g=>g.f[0]*(1-2*g.numericalError)*lowScale)):NaN;
   const high=candidates.length?Math.max(...candidates.map(g=>g.f[0]*(1+2*g.numericalError)*highScale)):NaN;
-  const G=table.grid,inside=hbar>=G.hbar[0]&&hbar<=G.hbar.at(-1)&&c.nu>=G.nu[0]&&c.nu<=G.nu.at(-1);
-  const reason=candidates.length?"":!inside?"The entered mass, diameter and Poisson ratio are outside the solid model's tables (thickness/radius "+G.hbar[0]+"–"+G.hbar.at(-1)+", ν "+G.nu[0]+"–"+G.nu.at(-1)+").":"No sampled cross-section fits this mass with a rim of "+lo.toFixed(2)+"–"+hi.toFixed(2)+" mm.";
-  return {...base,low,high,rims:[lo,hi],rimMeasured:measured,valid:candidates.length>0&&low>0,reason};
+  const G=table.grid,thick=hbar>G.hbar.at(-1),inside=hbar>=G.hbar[0]&&!thick&&c.nu>=G.nu[0]&&c.nu<=G.nu.at(-1);
+  const reason=candidates.length?"":thick?"At this weight and diameter the coin would be thicker than the solid model's tables (volume-equivalent thickness/radius above "+G.hbar.at(-1)+").":!inside?"The entered mass, diameter and Poisson ratio are outside the solid model's tables (thickness/radius "+G.hbar[0]+"–"+G.hbar.at(-1)+", ν "+G.nu[0]+"–"+G.nu.at(-1)+").":"No sampled cross-section fits this mass with a rim of "+lo.toFixed(2)+"–"+hi.toFixed(2)+" mm.";
+  return {...base,low,high,rims:[lo,hi],rimMeasured:measured,numericalError,valid:candidates.length>0&&low>0,reason,beyondThickness:thick};
 }
 function geometryFamily(c){
   const o=familyOptions(c),key=JSON.stringify([c.mass,c.dia,c.rho,c.E,c.nu,c.rimThickness||0,o,c.plateModel||"plate",c.support||"centre"]);
@@ -371,7 +358,7 @@ function screenReading(r,c,requirePattern=false,requiredTaps=requirePattern?3:2)
     else{state="anomalous";diagnostic="primary-above-model";reason="The lowest repeatable resonance ("+hz+" Hz) is above the lowest-mode band ("+range+") and the recurring tones do not fit the model as upper modes. Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
   }else if(fieldPosition==="anomalous"){state="anomalous";diagnostic="primary-outside-model";reason="The lowest repeatable resonance ("+hz+" Hz) is below the current model band ("+range+"). Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
   else{state="evidence";diagnostic="primary-band-edge";reason="The lowest repeatable resonance is near a model-band edge or has no clear lowest-mode assignment. Check dimensions and repeat the strike.";}
-  if(requirePattern&&!provisional&&band.source==="solid")reason+=" Experimental 3D Morgan model"+(band.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are not scored":"")+".";
+  if(requirePattern&&!provisional&&band.source==="solid")reason+=" Experimental 3D solid model, "+band.crossSectionName+" cross-section"+(band.support==="centre"?"; the (0,1) and (1,1) modes, which a centre support damps and stiffens, are not scored":"")+".";
   return {state,reason,diagnostic,primary,fieldPosition,band,repeatable,provisional,estimate,fingerprint,fit};
 }
 

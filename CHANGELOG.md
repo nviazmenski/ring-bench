@@ -2,6 +2,48 @@
 
 Newest first. Each section describes the release it names; behaviour in older sections may since have changed. Current behaviour is in [README.md](README.md) and [MODEL.md](MODEL.md). Git tags `lite-X.Y` and `pro-X.Y` mark each release.
 
+## Pro 4.12 / Lite 3.9 — the experimental 3D solid model for every coin
+
+- **Every catalogue coin, still opt-in, Pro only.** Model → Plate model → *3D solid (experimental)*. The choice now stays as you switch coins, for testing a batch. Lite and Pro's default thin-plate model are unchanged; Lite's build moves only because shared files changed.
+- **Generic coin cross-section.** It is used for every coin except the Morgan, which keeps its own:
+  - die basin up to 7% of the volume-equivalent thickness per side;
+  - raised rim 2–10% of the radius;
+  - inner border (denticles, beads or a step) 3–7%;
+  - central device out to 50–75% of the radius;
+  - a legend band when there is room;
+  - smeared relief with partial in-plane stiffness;
+  - through-thickness shear 0.9–1.3× isotropic.
+
+  Forty-eight Latin-hypercube samples.
+- **One wide grid for both families.**
+  - Volume-equivalent thickness/radius 0.02–0.23 (Morgan 0.08–0.20); rim 1.00–1.50× the volume-equivalent thickness; ν 0.27–0.43.
+  - That covers every catalogue coin (0.029–0.152) and every listed fake that calipers would not catch.
+  - Interpolation is quadratic along each axis. Near a free edge the 3D correction grows roughly in proportion to thickness, so linear interpolation erred by up to 0.1%. Quadratic keeps it to about 0.02%.
+  - Each table records its measured interpolation error, which becomes its numerical margin.
+  - Values are stored as 16-bit integers.
+- **Fakes use the same model** as the coin under test when the solid model is selected, including the analysis floor. A fake thicker than the tables, or than the entered rim allows, is reported as caught by calipers.
+- **Rim prior.**
+  - Unmeasured, the rim is a ratio of each hypothesis's own volume-equivalent thickness: 1.03–1.45 for the generic family, 1.034–1.254 for the Morgan (2.35–2.85 mm at catalogue weight).
+  - Without a caliper reading the generic bands are much wider than the thin-plate bands; enter the rim thickness.
+- **Band widths across the 105 coins** (median half-width):
+
+  | Model | Median half-width |
+  |---|---|
+  | Thin plate | 10.0% |
+  | Solid model, rim unmeasured | 18.6% |
+  | Solid model, rim measured | 14.2% |
+
+  - The upper edge sits 1.5–4.1% below the thin-plate edge.
+  - Pitch or calipers rule out 398 of the listed fakes against 466 with the thin plate. MODEL.md, "Band width, and what it costs", has the details and what a Lite port would need first.
+- **M06 unchanged in substance:** *Model consistent*, with (2,0), (3,0) and (4,0) within 0.16%.
+- **Solver.** The subspace iteration stops at 10⁻⁹ relative change instead of 10⁻¹¹. Rounding noise in thin discs had kept it iterating to its limit; eigenvalues move by less than 5·10⁻⁹.
+- **Smooth near a flat rim.** Relief layers carry an additive 2% × (1 − f) of the field thickness instead of a 2% floor, and the solid rim carries none, so it stays exactly at the entered thickness. The floor put a kink in the eigenvalues when the rim was within about 3% of the mean thickness. The field thickness that conserves mass is now solved exactly, about 20× faster than bisection.
+- **Nearly flat coins.**
+  - The app checks directly whether each sampled cross-section can exist at the exact inputs; this is a geometric test and no eigenvalue solve is needed.
+  - Where a neighbouring grid node is inadmissible, the lookup extrapolates at most one grid step from admissible nodes. Before this, a rim just above the mean thickness (M06 is 1.07×) lost most of its cross-sections.
+  - The shape mapping now lives in `pro/solid.js`, shared by the app and the generator.
+- `npm run solid:check` now checks both families at grid entries and off-grid points, including admissibility. `--measure` re-measures the interpolation error without regenerating.
+
 ## Pro 4.11 / Lite 3.8 — experimental 3D solid model for the Morgan dollar
 
 - **Opt-in, Pro, Morgan dollar only.** Model → Plate model → *3D solid, Morgan cross-section (experimental)*. Lite, every other coin and Pro's default thin-plate model behave as before. Lite's build moves only because shared files changed.

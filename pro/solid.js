@@ -140,7 +140,8 @@ function solidHarmonic(mesh,n,nu,g,count){
     for(let i=0;i<p;i++)for(let j=0;j<i;j++){Ak[i][j]=Ak[j][i]=(Ak[i][j]+Ak[j][i])/2;Bk[i][j]=Bk[j][i]=(Bk[i][j]+Bk[j][i])/2;}
     const e=smallEigen(Ak,Bk);values=e.values;
     X=e.vectors.map(q=>{const x=new Float64Array(N);for(let k=0;k<p;k++){const c=q[k];if(c)for(let i=0;i<N;i++)x[i]+=c*X[k][i];}return x;});
-    if(prev&&values.slice(rigid,m).every((v,i)=>Math.abs(v-prev[rigid+i])<=1e-11*Math.abs(v)))break;
+    // 1e-9: thin discs make K ill-conditioned, and rounding noise near 1e-10 would otherwise never settle.
+    if(prev&&values.slice(rigid,m).every((v,i)=>Math.abs(v-prev[rigid+i])<=1e-9*Math.abs(v)))break;
     prev=values;
   }
   return values.slice(rigid,m);
@@ -165,32 +166,109 @@ function profileHbar(profile){
   return 4*s;
 }
 
-// ───────── Morgan dollar cross-section (experimental) ─────────
+// ───────── Coin cross-sections (experimental) ─────────
 // Per side, mirror-symmetric, lengths in units of the radius. Spherical die basin of sagitta s at the centre;
-// smeared relief (portrait and legends) and denticles on the local field; a solid outer rim to the measured
-// rim thickness. Smeared layers: density φρ, out-of-plane stiffness φE (keeps them attached), in-plane
-// stiffness βE with β≤φ (separate relief islands carry little in-plane stress).
-const MORGAN_PROFILE_DEFAULTS=Object.freeze({s:.0058,wR:.04,wD:.05,fD:.7,phiD:.5,fc:.7,phic:.4,rc:.68,fL:.7,phiL:.3,rL0:.74,rL1:.89,beta:.15,taper:.02,wall:.006,nfield:8});
-function morganBuild(TFe,TR,p){
-  const rF=1-p.wR-p.wD,field=r=>TFe-p.s*Math.max(0,1-(r/rF)**2),EPS=.02;
+// smeared relief (a central device out to rc and an optional legend band rL0–rL1) and denticles on the local
+// field; a solid outer rim to the rim thickness. Relief heights are fractions of the local field depth below the
+// rim top. Smeared layers: density φρ, out-of-plane stiffness φE (keeps them attached), in-plane stiffness βE with
+// β≤φ (separate relief islands carry little in-plane stress). The Morgan family fixes the legend band at 0.74–0.89;
+// the generic family places it between the central device and the denticles.
+const COIN_PROFILE_DEFAULTS=Object.freeze({s:.0058,wR:.04,wD:.05,fD:.7,phiD:.5,fc:.7,phic:.4,rc:.68,fL:.7,phiL:.3,rL0:.74,rL1:.89,beta:.15,taper:.02,wall:.006,nfield:8});
+const MORGAN_PROFILE_DEFAULTS=COIN_PROFILE_DEFAULTS;
+function coinBuild(TFe,TR,p){
+  const rF=1-p.wR-p.wD,field=r=>TFe-p.s*Math.max(0,1-(r/rF)**2),EPS=.02,legend=p.rL1>p.rL0;
   const smeared=phi=>[phi,phi,Math.max(.02,Math.min(p.beta,phi)/phi)],VOID=[1e-3,1e-3,1],SOLID=[1,1,1];
-  const set=new Set([0,p.rc-p.taper,p.rc,p.rL0,p.rL0+p.taper,p.rL1-p.taper,p.rL1,rF,rF+p.taper,1-p.wR-p.wall,1-p.wR,1]);
+  const set=new Set([0,p.rc-p.taper,p.rc,rF,rF+p.taper,1-p.wR-p.wall,1-p.wR,1,...legend?[p.rL0,p.rL0+p.taper,p.rL1-p.taper,p.rL1]:[]]);
   for(let i=1;i<p.nfield;i++)set.add((p.rc-p.taper)*i/p.nfield);
   const rb=[...set].filter(x=>x>=0&&x<=1).sort((a,b)=>a-b).filter((x,i,a)=>i===0||x-a[i-1]>1e-12);
-  const band=r=>r<p.rc?[p.fc,smeared(p.phic)]:r<p.rL0?[0,VOID]:r<p.rL1?[p.fL,smeared(p.phiL)]:r<rF?[0,VOID]:r<1-p.wR?[p.fD,smeared(p.phiD)]:[1,SOLID];
-  const top=(r,f)=>{const F=field(r);return F+Math.max(f*(TR-F),EPS*F);};
+  const band=r=>r<p.rc?[p.fc,smeared(p.phic)]:legend&&r>=p.rL0&&r<p.rL1?[p.fL,smeared(p.phiL)]:r<rF?[0,VOID]:r<1-p.wR?[p.fD,smeared(p.phiD)]:[1,SOLID];
+  // A thin additive layer, 2% of the field and none on the solid rim (f = 1), keeps every element non-degenerate
+  // while the rim stays exactly at its entered thickness. A hard floor, max(f·depth, 2%), put a kink in λ² near
+  // rim ≈ mean thickness that no interpolation grid could follow.
+  const top=(r,f)=>{const F=field(r);return F+f*(TR-F)+EPS*F*(1-f);};
   const nseg=rb.length-1,lv=[],mats=[],ramp=[];
   for(let k=0;k<nseg;k++){const [f,m]=band((rb[k]+rb[k+1])/2);lv.push(f);mats.push(m);ramp.push(rb[k+1]-rb[k]<=Math.max(p.taper,p.wall)+1e-9);}
   const tt=rb.map((r,i)=>{const c=[];if(i>0&&!ramp[i-1])c.push(lv[i-1]);if(i<nseg&&!ramp[i])c.push(lv[i]);if(!c.length)c.push(lv[i-1]);return top(r,Math.min(...c));});
   for(let k=0;k<nseg;k++)if(ramp[k]){const nb=[k-1,k+1].filter(j=>j>=0&&j<nseg&&!ramp[j]),j=nb.length?nb.reduce((a,b)=>lv[b]>lv[a]?b:a):k;mats[k]=band((rb[j]+rb[j+1])/2)[1];}
   return {rb,tc:rb.map(field),tt,mats};
 }
-// Field edge thickness solved so the volume matches the mass; null when the rim is too thin for the mass.
-function morganProfile(hbar,hR,params={}){
-  const p={...MORGAN_PROFILE_DEFAULTS,...params},TR=hR/2;let lo=.4*TR,hi=TR;
-  if(profileHbar(morganBuild(hi,TR,p))<hbar)return null;
-  for(let i=0;i<60;i++){const mid=(lo+hi)/2;if(profileHbar(morganBuild(mid,TR,p))>hbar)hi=mid;else lo=mid;}
-  const pr=morganBuild((lo+hi)/2,TR,p);
+// Field edge thickness solved so the volume matches the mass; null when the rim is too thin for the mass
+// or the field would be thinner than half the rim. Every thickness in the cross-section is linear in the field
+// edge thickness (the relief rides on the field, with heights proportional to its depth below the rim), so the
+// volume is too, and two evaluations solve it exactly.
+function coinProfile(hbar,hR,params={}){
+  const p={...COIN_PROFILE_DEFAULTS,...params},TR=hR/2,lo=.4*TR,hi=TR,vlo=profileHbar(coinBuild(lo,TR,p)),vhi=profileHbar(coinBuild(hi,TR,p));
+  if(vhi<hbar||!(vhi>vlo))return null;
+  const TFe=lo+(hbar-vlo)*(hi-lo)/(vhi-vlo);
+  if(TFe<lo)return null;
+  const pr=coinBuild(TFe,TR,p);
   const valid=pr.tt.every((t,i)=>t>pr.tc[i])&&Math.min(...pr.tc)>.5*TR;
-  return valid?{...pr,hbar:profileHbar(pr),fieldEdge:2*(lo+hi)/2,fieldCentre:2*((lo+hi)/2-p.s),params:p}:null;
+  return valid?{...pr,hbar:profileHbar(pr),fieldEdge:2*TFe,fieldCentre:2*(TFe-p.s),params:p}:null;
+}
+const morganProfile=coinProfile;
+// How each family's prior sample becomes cross-section parameters at a given volume-equivalent thickness. The table
+// generator and the app share this, so the app can test whether a sampled cross-section exists at its exact inputs.
+const SOLID_FAMILY_PARAMS={
+  "morgan-solid":(v,hbar)=>({s:v.s/19.05,wR:v.wR,wD:v.wD,fD:v.fD,phiD:v.phiD,fc:v.fc,phic:v.phic,rc:v.rc,fL:v.fL,phiL:v.phiL,rL0:.74,rL1:.89,beta:v.betaFrac*Math.min(v.phic,v.phiL,v.phiD)}),
+  "generic-solid":(v,hbar)=>{const rL0=v.rc+.04,rL1=1-v.wR-v.wD-.02,legend=rL1-rL0>=.05;
+    return {s:v.sRel*hbar,wR:v.wR,wD:v.wD,fD:v.fD,phiD:v.phiD,fc:v.fc,phic:v.phic,rc:v.rc,fL:v.fL,phiL:v.phiL,rL0:legend?rL0:1,rL1:legend?rL1:1,beta:v.betaFrac*Math.min(v.phic,v.phiL,v.phiD)};},
+};
+function solidSample(family,keys,x){return Object.fromEntries(keys.map((k,i)=>[k,x[i]]));}
+function solidProfileFor(family,keys,x,hbar,rim){return coinProfile(hbar,rim*hbar,SOLID_FAMILY_PARAMS[family](solidSample(family,keys,x),hbar));}
+
+// ───────── Precomputed tables (pro/solid-tables.js) ─────────
+// Each family stores λ² for every sample on a grid of volume-equivalent thickness/radius, rim/volume-equivalent thickness
+// and ν, as base64 Uint16 values quantised over each mode's range (0 = no admissible cross-section).
+const solidTableCache=new Map();
+function solidBase64(text){
+  const code=new Uint8Array(128);"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".split("").forEach((ch,i)=>code[ch.charCodeAt(0)]=i);
+  const clean=text.replace(/=+$/,""),out=new Uint8Array(Math.floor(clean.length*3/4));
+  for(let i=0,o=0;i<clean.length;i+=4){
+    const a=code[clean.charCodeAt(i)],b=code[clean.charCodeAt(i+1)],c=code[clean.charCodeAt(i+2)]||0,d=code[clean.charCodeAt(i+3)]||0,n=a<<18|b<<12|c<<6|d;
+    if(o<out.length)out[o++]=n>>16&255;if(o<out.length)out[o++]=n>>8&255;if(o<out.length)out[o++]=n&255;
+  }
+  return out;
+}
+function solidTable(name){
+  if(solidTableCache.has(name))return solidTableCache.get(name);
+  const raw=typeof SOLID_TABLE_DATA==="undefined"?null:SOLID_TABLE_DATA[name];
+  if(!raw)return null;
+  const bytes=solidBase64(raw.data),values=new Uint16Array(bytes.length/2);
+  for(let i=0;i<values.length;i++)values[i]=bytes[2*i]|bytes[2*i+1]<<8;
+  const table={...raw,family:name,values};solidTableCache.set(name,table);return table;
+}
+function solidTableEntry(t,si,ih,ir,iv){
+  const G=t.grid,at=(((si*G.hbar.length+ih)*G.rim.length+ir)*G.nu.length+iv)*6,out=[];
+  for(let m=0;m<6;m++){const q=t.values[at+m];if(!q)return null;const [lo,hi]=t.ranges[m];out.push(lo+(q-1)*(hi-lo)/65534);}
+  return out;
+}
+// Quadratic (three-point Lagrange) interpolation along each axis; the thickness dependence is far from linear near a
+// free edge. A sampled cross-section that does not exist at the exact inputs (checked directly: a cheap geometric
+// test) returns null. Otherwise, near an inadmissible grid node, the lookup tries the other quadratic stencil on that
+// axis, then linear, then a one-sided quadratic that extrapolates at most one grid step from admissible nodes: a coin
+// just above a feasibility edge (a nearly flat coin whose rim barely exceeds its mean thickness) keeps its shape.
+function solidLookup(t,si,hbar,rim,nu){
+  const G=t.grid,options=[];
+  if(!solidProfileFor(t.family,t.keys,t.samples[si],hbar,rim))return null;
+  for(const [xs,x] of [[G.hbar,hbar],[G.rim,rim],[G.nu,nu]]){
+    if(!(x>=xs[0]-1e-12&&x<=xs.at(-1)+1e-12))return null;
+    let k=0;while(k<xs.length-2&&x>xs[k+1])k++;
+    const f=Math.min(1,Math.max(0,(x-xs[k])/(xs[k+1]-xs[k]))),lagrange=j=>{const pts=[j,j+1,j+2];return pts.map(i=>[i,pts.reduce((w,l)=>l===i?w:w*(x-xs[l])/(xs[i]-xs[l]),1)]);};
+    const near=x-xs[k]<xs[k+1]-x?k-1:k,first=Math.min(xs.length-3,Math.max(0,near)),other=Math.min(xs.length-3,Math.max(0,near===k?k-1:k)),list=[];
+    if(xs.length>=3){list.push({rank:0,w:lagrange(first)});if(other!==first)list.push({rank:1,w:lagrange(other)});}
+    list.push({rank:2,w:[[k,1-f],[k+1,f]]});
+    if(k+3<xs.length)list.push({rank:3,w:lagrange(k+1)});   // x lies below this stencil by less than one step
+    if(k-2>=0)list.push({rank:3,w:lagrange(k-2)});          // x lies above this stencil by less than one step
+    options.push(list);
+  }
+  const combos=[];for(const a of options[0])for(const b of options[1])for(const c of options[2])combos.push([a,b,c]);
+  combos.sort((p,q)=>p.reduce((s,o)=>s+o.rank,0)-q.reduce((s,o)=>s+o.rank,0));
+  for(const [a,b,c] of combos){
+    const out=[0,0,0,0,0,0];let ok=true;
+    outer:for(const [i,wi] of a.w)for(const [j,wj] of b.w)for(const [k,wk] of c.w){
+      const w=wi*wj*wk;if(w===0)continue;const e=solidTableEntry(t,si,i,j,k);if(!e){ok=false;break outer;}for(let m=0;m<6;m++)out[m]+=w*e[m];
+    }
+    if(ok)return out;
+  }
+  return null;
 }

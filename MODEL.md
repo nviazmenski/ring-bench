@@ -16,9 +16,9 @@ This section is the current verdict logic; Pro 4.9 / Lite 3.6, Pro 4.10 / Lite 3
 
 **Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
 
-## 3D solid model, Morgan dollar — Pro 4.11 (experimental)
+## 3D solid model — Pro 4.11–4.12 (experimental)
 
-This section is current. It is opt-in: in Pro, for the Morgan dollar, **Model → Plate model → 3D solid, Morgan cross-section**. Lite, every other coin and Pro's default are unchanged.
+This section is current. It is opt-in, in Pro, for any catalogue coin: **Model → Plate model → 3D solid (experimental)**. The choice stays as you switch coins. The Morgan dollar uses its own cross-section family (4.11); every other coin uses the generic family (4.12). Lite and Pro's default thin-plate model are unchanged.
 
 **Why.** The thin-plate (Kirchhoff) model leaves out transverse shear and rotary inertia. For a disc as thick as a Morgan (volume-equivalent thickness/radius 0.12) it overpredicts every mode, and more so for higher modes. A uniform disc at ν = 0.37 is overpredicted by:
 
@@ -28,7 +28,7 @@ This section is current. It is opt-in: in Pro, for the Morgan dollar, **Model �
 
 The band absorbs the first column through its scale. The ratios do not: thin-plate (3,0)/(2,0) is 2.334 on a flat disc, the 3D value 2.284. This is the error that grows with frequency.
 
-**Solver** (`pro/solid.js`). The model is 3D linear elasticity on the coin's cross-section, with no plate assumptions. Displacements are u_r = U cos nθ, u_θ = V sin nθ and u_z = W cos nθ. Each circumferential order n is solved on the half cross-section 0 ≤ z ≤ h(r)/2. Mid-plane antisymmetry keeps only the flexural family. The axis conditions are exact: for n = 0, U = 0; for n = 1, W = 0 and V = −U; for n ≥ 2, all three are zero. The discretisation uses biquadratic 9-node elements and 4×4 Gauss points, solved by banded Cholesky and subspace iteration. Eigenvalues are reported as the plate-equivalent λ² in f = λ²·h̄/(2πa²)·√(E/(12(1−ν²)ρ)), so the rest of the app is unchanged.
+**Solver** (`pro/solid.js`). The model is 3D linear elasticity on the coin's cross-section, with no plate assumptions. Displacements are u_r = U cos nθ, u_θ = V sin nθ and u_z = W cos nθ. Each circumferential order n is solved on the half cross-section 0 ≤ z ≤ h(r)/2. Mid-plane antisymmetry keeps only the flexural family. The axis conditions are exact: for n = 0, U = 0; for n = 1, W = 0 and V = −U; for n ≥ 2, all three are zero. The discretisation uses biquadratic 9-node elements and 4×4 Gauss points, solved by banded Cholesky and subspace iteration. The iteration stops at a relative change of 10⁻⁹; thin discs make the stiffness matrix ill-conditioned, and a tighter test only chases rounding noise. Eigenvalues are reported as the plate-equivalent λ² in f = λ²·h̄/(2πa²)·√(E/(12(1−ν²)ρ)), so the rest of the app is unchanged.
 
 **Validation.**
 - **Thin limit.** At h/a = 0.005 all six tracked modes agree with the free Kirchhoff plate within 0.05%, for ν = 0.30 and 0.37.
@@ -38,13 +38,15 @@ The band absorbs the first column through its scale. The ratios do not: thin-pla
 
 The scripts are in `research/solid/`; `tests/solid.test.cjs` repeats the thin-limit and spectral checks.
 
-**Morgan cross-section.** The cross-section is per side and mirror-symmetric, in units of the radius:
+**Cross-sections.** Both families are per side and mirror-symmetric, in units of the radius:
 - **Field:** a spherical die basin of sagitta s, the field depth at the centre relative to the field edge.
-- **Portrait and legends:** smeared relief, on the central device out to 0.62–0.72 of the radius and on the legend band from 0.74 to 0.89.
-- **Denticles:** a smeared band.
+- **Relief:** smeared, on a central device and on a legend band. The Morgan family fixes the legend band at 0.74–0.89 of the radius; the generic family places it from 0.04 outside the device to 0.02 inside the border, when that leaves at least 0.05.
+- **Inner border:** denticles, beads or a step, as a smeared band.
 - **Rim:** solid, up to the rim thickness.
 
-Smeared layers have density φρ and out-of-plane stiffness φE, which keeps them attached so they create no spurious modes. Their in-plane stiffness is βE with β ≤ φ, because separate relief islands carry little in-plane stress. The field thickness is solved so the volume matches mass/density, so mass is conserved exactly.
+Smeared layers have density φρ and out-of-plane stiffness φE, which keeps them attached so they create no spurious modes. Every upper layer below the rim also carries a thin extra layer, 2% of the local field thickness × (1 − f), so no element collapses. The solid rim (f = 1) gets none and stays exactly at the entered thickness. The layer is additive, not a floor. Pro 4.11 used max(f·depth, 2%), which put a kink in λ² at rims within about 3% of the mean thickness; the additive layer is smooth there. Every thickness in the cross-section is then linear in the field thickness, so the field thickness that conserves mass is solved exactly from two evaluations. Their in-plane stiffness is βE with β ≤ φ, because separate relief islands carry little in-plane stress. The field thickness is solved so the volume matches mass/density, so mass is conserved exactly.
+
+**Morgan priors** (4.11):
 
 | Prior | Range | Reason |
 |---|---|---|
@@ -55,14 +57,41 @@ Smeared layers have density φρ and out-of-plane stiffness φE, which keeps the
 | Legend band | height 50–90%; fill 20–40% | Letters and stars. |
 | Relief in-plane stiffness | 5–60% of its fill | Mostly islands. |
 | Through-thickness shear modulus | 0.9–1.3 × isotropic | Rolling texture. Silver's fibre textures bound it at 0.86 (⟨111⟩) to 1.55 (⟨100⟩). |
-| Rim thickness | caliper reading ± 0.03 mm, or 2.35–2.85 mm | Reported Morgan rims range from 2.4 to 2.8 mm, varying by mint and die. |
+| Rim thickness | caliper reading ± 0.03 mm, or 1.034–1.254× the volume-equivalent thickness | 2.35–2.85 mm at catalogue weight: reported Morgan rims range from 2.4 to 2.8 mm, varying by mint and die. |
 
-**Tables** (`pro/solid-tables.js`, from `npm run solid:tables`). Forty Latin-hypercube samples of the priors are each solved on a grid:
-- volume-equivalent thickness/radius 0.100–0.145;
-- rim/volume-equivalent thickness 1.00–1.30;
-- ν 0.34–0.40.
+**Generic priors** (4.12), for every other coin. These are broad engineering ranges for struck coins, not measurements of any particular design:
 
-That is 3,360 cross-sections. Trilinear interpolation errs by at most 1.2·10⁻⁴; the family carries a 2·10⁻⁴ numerical margin, doubled as elsewhere. Inputs outside the grid make the family invalid with a stated reason; nothing is extrapolated. `npm run solid:check` recomputes entries and CI runs it. A measured rim gives three cross-sections per sample: the reading and ±0.03 mm. The prior gives its endpoints and the grid points between them.
+| Prior | Range | Reason |
+|---|---|---|
+| Die basin, per side | 0–7% of the volume-equivalent thickness | The Morgan range, scaled to thickness. |
+| Rim width | 2–10% of radius | From narrow raised borders to wide flat bullion rims. |
+| Inner border | 3–7% of radius; height 30–90% of field depth; fill 30–70% | Denticles, beads or a step. |
+| Central device | out to 50–75% of radius; height 30–90% of field depth; fill 25–55% | Portraits and arms; wear lowers the high points. |
+| Legend band | height 40–90%; fill 10–40% | Letters, when there is room. |
+| Relief in-plane stiffness | 5–60% of its fill | As for the Morgan. |
+| Through-thickness shear modulus | 0.9–1.3 × isotropic | As for the Morgan; gold and copper alloys are similarly anisotropic. |
+| Rim thickness | caliper reading ± 0.03 mm, or 1.03–1.45× the volume-equivalent thickness | Published thicknesses of a few coins give about 1.23 (Krugerrand) to 1.40 (90% dime). These figures were recalled, not checked for this document. |
+
+Without a caliper reading, the rim prior is a ratio of each hypothesis's own volume-equivalent thickness, so a fake of the same weight is judged by the same rule as the genuine coin. A caliper reading applies to every hypothesis.
+
+**Tables** (`pro/solid-tables.js`, from `npm run solid:tables`, about an hour on 4 cores). Each family's Latin-hypercube samples (40 Morgan, 48 generic) are solved on one grid:
+- volume-equivalent thickness/radius 0.02–0.23 in steps of 0.03 (Morgan 0.08–0.20);
+- rim/volume-equivalent thickness 1.00–1.50 in steps of 1/12;
+- ν 0.27–0.43 in steps of 0.04.
+
+That is 20,440 cross-sections, 16,425 of them admissible, covering every catalogue coin (thickness/radius 0.029–0.152, ν 0.28–0.42) and every listed fake that calipers would not catch.
+
+*Interpolation* is quadratic along each axis. Near a free edge the 3D correction grows roughly in proportion to h/a rather than (h/a)², so linear interpolation on this grid erred by up to 0.11% on thickness and 0.075% on rim. Quadratic interpolation errs by at most 0.018% and 0.003%. A sampled cross-section that cannot exist at the exact inputs is dropped; the app checks this directly with the geometry code shared with the generator, and no eigenvalue solve is needed. When a neighbouring grid node is inadmissible, the lookup switches that axis alone to its other quadratic stencil, then to linear. If neither works, it uses a one-sided quadratic that extrapolates at most one grid step from admissible nodes. That keeps nearly flat coins, whose rim barely exceeds their mean thickness, from losing most of their cross-sections.
+
+*Error margin.* The generator measures the interpolation error against direct solves at 24 random off-grid points per family, including the band just above the lowest rim node: 1.7·10⁻⁴ for the Morgan family and 2.0·10⁻⁴ for the generic family. That value, or 2·10⁻⁴ if larger, is the family's numerical margin, doubled as elsewhere.
+
+*Storage.* Values are stored as 16-bit integers over each mode's range; quantisation error is about 10⁻⁵.
+
+*Out of range.* Inputs outside the grid make the family invalid with a stated reason; nothing is extrapolated.
+
+*Checks.* `npm run solid:check` (run in CI) recomputes grid entries and off-grid points for both families.
+
+*Rim.* A measured rim gives three cross-sections per sample: the reading and ±0.03 mm. The prior gives its endpoints and the grid points between them.
 
 **Scoring, when this model is selected:**
 - **Split pairs.** The model is axisymmetric; relief and rolling texture split each (n,s) pair. To first order the split moves ω² symmetrically, so a family of close tracks (the existing 3% grouping) is scored at its RMS frequency. M06's (2,0) pair, 4246/4369 Hz (2.9% split), is scored at 4308 Hz. An orthotropic sheet splits only n = 1 and n = 2 at first order, which matches M06: its (3,0) and (4,0) are single.
@@ -77,31 +106,52 @@ That is 3,360 cross-sections. Trilinear interpolation errs by at most 1.2·10⁻
   - It searches only above 1.4× the lowest tone the standard detector kept: strike and holder sounds are loudest early, and every modelled second mode is at least 1.5× the lowest (1.62 in the solid tables, 1.54 across the thin-plate catalogue). It cannot change the lowest repeatable resonance.
   - Found tones are marked in exports (`early: true`, strike `upperScan: "early-window-v1"`), and their levels are taken from the full-ring spectrum.
   - The standard detector is unchanged.
-- **Fakes.** The construction screen keeps the thin-plate model; the solid tables cover only the genuine alloy's range. For a Morgan the thin-plate bias (about 2% on the lowest mode) is small next to the separations listed under "Counterfeit constructions".
+- **Fakes.** Since 4.12 the construction screen and the analysis floor use the same solid model and cross-section family as the coin under test; only the material changes. A fake thicker than the tables (volume-equivalent thickness/radius above the grid) has no admissible cross-section, and neither does one thicker than the entered rim allows. Both are reported as caught by calipers, as before. In 4.11 the fakes stayed on the thin-plate model.
 - The 3% fit tolerance, the three-mode requirement, harmonic candidates, guards and verdict rules are unchanged.
 
 **Result on one specimen.** M06: 1881-S, VF, 25.81 g, 37.7 mm, rim 2.40 mm, Pocket Pinger, three taps (`tests/fixtures/morgan-m06`). Authenticity has not been verified independently. The mass is 0.92 g under the 26.73 g standard, well beyond mint tolerance and ordinary wear.
 
 | | Thin plate, same inputs | 3D solid, rim 2.40 mm |
 |---|---|---|
-| Lowest-mode band | 4105–4812 Hz | 3807–4660 Hz |
+| Lowest-mode band | 4105–4812 Hz | 3793–4646 Hz |
 | Modes found | (2,0) pair, (3,0) | (2,0) pair, (3,0), (4,0) at 17.3 kHz |
 | Result | Primary frequency in band, 2 modes | Model consistent |
-| Fit residuals | — | (2,0) +0.07%, (3,0) −0.16%, (4,0) +0.09% |
+| Fit residuals | — | (2,0) +0.08%, (3,0) −0.16%, (4,0) +0.08% |
 
 With the early scan but the thin-plate model, the three tones fit with 0.5–1% errors. Competing identities also fit within 3%, so the result stays "ambiguous". The solid model's fit is unambiguous even with all six modes scored.
 
-Of the 40 sampled cross-sections, 6 fit both upper ratios within 0.5%, all with a die basin of 0.04–0.07 mm. The lowest mode then implies an effective modulus of 82–84 GPa at the assumed density, against the 82 GPa handbook value. The measured (0,1) sits 0.7–1.1% above those cross-sections' free-disc prediction, consistent with the soft-pad calculation. Pro's Model tab reports a closest-fit summary: every fitted mode within 0.5%, across the ±0.03 mm rim tolerance. For M06 it shows 0.01–0.10 mm and 82–87 GPa. It is descriptive and not scored.
+Of the 40 sampled cross-sections, 6 fit both upper ratios within 0.5%, all with a die basin of 0.04–0.07 mm. The lowest mode then implies an effective modulus of 82–85 GPa at the assumed density, against the 82 GPa handbook value. The measured (0,1) sits 0.7–1.1% above those cross-sections' free-disc prediction, consistent with the soft-pad calculation. Pro's Model tab reports a closest-fit summary: every fitted mode within 0.5%, across the ±0.03 mm rim tolerance. For M06 it shows 0.01–0.10 mm and 82–87 GPa. It is descriptive and not scored.
+
+**Band width, and what it costs.** Across all 105 catalogue coins, with the rim unmeasured:
+- **Upper edge:** 1.5–4.1% below the thin-plate edge. This is the physics correction.
+- **Lower edge:** 13.8–20.1% below the thin-plate edge. The generic priors admit tall rims, deep basins and heavy relief that adds little stiffness, and all of them lower the pitch.
+
+| Band half-width (min / median / max) | |
+|---|---|
+| Thin plate | 9.8 / 10.0 / 10.2% |
+| Solid model, rim unmeasured | 15.7 / 18.6 / 18.8% |
+| Solid model, rim measured | 11.5 / 14.2 / 14.9% |
+
+A measured Morgan is ±10%. Across the catalogue, pitch or calipers rule out 398 of the listed fakes with the solid model, against 466 with the thin plate: honest priors cost discrimination.
+
+With the rim measured, the spread across generic cross-sections is about 13% on the lowest mode for a Krugerrand, a 90% dime or a sterling crown. It correlates most with the relief's in-plane stiffness (+0.5), the rim width (−0.4), the legend height (−0.4) and the relief fill (−0.35). Rim width can be measured. The relief parameters can be pinned down only by recorded coins of known authenticity, the way M06's upper-mode ratios pinned its die basin.
+
+**Towards Lite.** Lite scores the lowest mode alone, from catalogue weight and diameter, with no rim reading. With the generic priors that band would be about 19% wide against today's 10%, so Lite's PASS would accept a wider range of pitches. Before Lite uses this model it needs, per coin:
+- a catalogue rim thickness (published or measured);
+- priors narrowed by genuine recordings.
+
+Meanwhile the physics correction alone (the 1.5–4% on the upper edge) could move to Lite without the wider priors.
 
 **Limits.**
-- One unverified specimen. Nothing here is calibrated on real coins.
+- One unverified specimen. Nothing here is calibrated on real coins, and no coin other than the Morgan has been recorded against it.
 - The 3% fit tolerance is wider than the family's own spread. For (3,0)/(2,0) that spread is 2.29–2.37 with a measured rim of 2.40 mm, and 2.29–2.42 under the rim prior. Upper modes add little discrimination until genuine specimens justify a tighter tolerance.
 - Axisymmetric: split pairs are not predicted.
 - The faces are mirror-symmetric, whereas the obverse and reverse differ.
 - Reeding and rim rounding are not modelled.
 - Relief is smeared and its priors are engineering estimates, not measurements of Morgan dies.
 - E and ν are handbook values for .900 silver.
-- The table covers only the Morgan and ν 0.34–0.40.
+- The generic family knows nothing specific about any design. Its priors are deliberately broad, so without a rim reading its bands are wide (below).
+- Clad and layered coins enter as their equivalent homogeneous plate. That is exact for thin-plate bending but approximate for the 3D thickness corrections.
 
 **Next data that would sharpen it:**
 - Three taps and a rim reading for each of several Morgans verified independently.
