@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),asse
 const ctx=vm.createContext({console});
 for(const name of ['coins','model','geometry','acoustics','references'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../shared/'+name+'.js'),'utf8'),ctx);
 const run=s=>vm.runInContext(s,ctx);
-run(`globalThis.coin=flat.find(c=>c.n.startsWith('2 Dinara'));globalThis.c={name:coin.n,key:coin.a,mass:10,dia:27.2,rho:rhoOf(coin.a),E:ALLOYS[coin.a].E,nu:ALLOYS[coin.a].nu,qmat:2000,sup:'finger'};
+run(`globalThis.coin=flat.find(c=>c.n.startsWith('2 Dinara'));globalThis.c={name:coin.n,key:coin.a,mass:coin.m,dia:coin.d,rho:rhoOf(coin.a),E:ALLOYS[coin.a].E,nu:ALLOYS[coin.a].nu,qmat:2000,sup:'finger'};
 globalThis.makeReading=(frequencies,count=3)=>({f0:frequencies[0],spread:0,usableHz:22000,complete:true,settings:{coin:c.name,alloy:c.key,mass:c.mass,diameter:c.dia},strikes:Array.from({length:count},(_,j)=>({f0:frequencies[0],offwindow:false,when:new Date(1700000000000+j*2000).toISOString(),peaks:frequencies.map(f=>({f,snrDb:30}))})),peaks:frequencies.map(f=>({f,snrDb:30}))});`);
 test('Ritz uniform limit agrees with prior Bessel solution across all six modes and nu range',()=>{
   assert.ok(run(`Array.from({length:7},(_,k)=>.2+.05*k).every(nu=>rimEigenvalues(nu,.1,1,8).every((v,i)=>Math.abs(v/lam2(i,nu)-1)<.00005))`));
@@ -16,7 +16,7 @@ test('six/eight term convergence indicator remains small across the default fami
   assert.ok(run(`Math.max(...geometryFamily(c).candidates.map(g=>g.numericalError))<.005`));
 });
 test('frequency uncertainty propagation obeys mass, diameter and modulus scaling',()=>{
-  for(const [change,ratio] of [["mass:20",2],["dia:54.4",1/16],["E:c.E*1.21",1.1]]){
+  for(const [change,ratio] of [["mass:c.mass*1.5",1.5],["dia:c.dia*2",1/16],["E:c.E*1.21",1.1]]){
     assert.ok(Math.abs(run(`geometryFamily({...c,${change}}).candidates[0].f[0]/geometryFamily(c).candidates[0].f[0]`)-ratio)<1e-8);
   }
 });
@@ -25,7 +25,14 @@ test('band has interior compatibility, inconclusive edge guards and distant anom
   assert.equal(run(`bandPosition(geometryFamily(c).low,geometryFamily(c))`),'inconclusive');
   assert.equal(run(`bandPosition(geometryFamily(c).low*.8,geometryFamily(c))`),'anomalous');
   assert.equal(run(`screenReading(makeReading([1000],1),c).state`),'inconclusive');
-  assert.equal(run(`screenReading(makeReading([1000]),c).state`),'anomalous');
+  assert.equal(run(`screenReading(makeReading([1000]),c).state`),'no-pass');
+  assert.equal(run(`screenReading(makeReading([1000]),c,true).state`),'anomalous');
+});
+test('no result of any kind before the required tap count',()=>{
+  const e=`screenReading(makeReading(geometryFamily(c).candidates[4].f.slice(0,3),2),c,true)`;
+  assert.equal(run(e+'.diagnostic'),'incomplete');assert.equal(run('resultTitle('+e+',true)'),'Test incomplete');
+  assert.equal(run('resultTitle(screenReading(makeReading([6400],1),c),false)'),'Test incomplete');
+  assert.equal(run('resultTitle(screenReading(makeReading([6400],2),c),false)'),'PASS');
 });
 test('joint fit recovers a sampled geometry from three peaks and their ratios',()=>{
   run(`globalThis.g=geometryFamily(c).candidates.find(g=>Math.abs(g.width-.09)<1e-9&&g.ratio>1.3);globalThis.r=makeReading(g.f.slice(0,3));globalThis.fit=fitGeometryFamily(r,c);`);
@@ -91,12 +98,40 @@ test('worn rouble pair is repeatable evidence, not claimed splitting or compatib
   assert.equal(run('rf.ratios[0].joint'),null);
   assert.equal(run('screenReading(ruble,rc,true).state'),'evidence');
 });
-test('an upper-only repeatable cluster cannot rule out an unexcited lower mode',()=>{
+test('a repeatable cluster stranded between modeled modes is outside the model',()=>{
   run(`globalThis.half=flat.find(x=>x.n==='Half Dollar 90% · 1873–1964');globalThis.ha=ALLOYS[half.a];globalThis.hc={name:half.n,key:half.a,mass:half.m,dia:half.d,rho:rhoOf(half.a),E:ha.E,nu:ha.nu,family:FAMILY_DEFAULTS};globalThis.badHalf=makeReading([6812,6928]);globalThis.he=modalEnvelopeEvidence(badHalf,hc);`);
   assert.equal(run('he.assignments.length'),1);
   assert.equal(run('he.outside.length'),1);
-  assert.equal(run('screenReading(badHalf,hc,true).diagnostic'),'lower-mode-unconfirmed');
-  assert.equal(run('screenReading(badHalf,hc,false).state'),'evidence');
+  assert.equal(run('screenReading(badHalf,hc,true).state'),'anomalous');
+  assert.equal(run('screenReading(badHalf,hc,true).diagnostic'),'primary-above-model');
+  assert.equal(run('resultTitle(screenReading(badHalf,hc,false),false)'),'NO PASS');
+});
+test('above the band, only a pattern that fits as upper modes keeps a missed lower mode open',()=>{
+  // Upper modes of the lighter coin: the pattern fits with the lowest mode missing.
+  assert.equal(run('screenReading(upper,lower,true).diagnostic'),'lower-mode-unconfirmed');
+  assert.equal(run('resultTitle(screenReading(upper,lower,false),false)'),'NO PASS');
+  // A lone high tone has no pattern to support that reading.
+  run(`globalThis.lone=screenReading(makeReading([geometryFamily(c).high*1.6]),c,true);`);
+  assert.equal(run('lone.state'),'anomalous');assert.equal(run('resultTitle(lone,true)'),'Primary frequency outside model');
+});
+test('a real plate mode near a whole-number multiple still counts when the fit needs it',()=>{
+  run(`globalThis.mc={mass:26.7296,dia:38.1,rho:rhoOf('ag900'),E:82,nu:.37};globalThis.u=geometryFamily(mc).candidates.find(g=>g.ratio===1);globalThis.hme=screenReading(makeReading([u.f[0],u.f[1],u.f[3]]),mc,true);`);
+  // On a flat silver plate (1,1) sits about 4.01x above (2,0), inside the harmonic tolerance.
+  assert.equal(run('hme.fingerprint.families[2].harmonicOrder'),4);
+  assert.equal(run('hme.fit.harmonicAssisted'),true);
+  assert.equal(run('resultTitle(hme,true)'),'Model consistent');
+  assert.match(run('hme.reason'),/whole-number multiple/);
+  // A fit that works without the candidate is never replaced by one that uses it.
+  run(`globalThis.strict=fitGeometryFamily(makeReading([...g.f.slice(0,3),g.f[0]*2]),c);`);
+  assert.equal(run('strict.state'),'compatible');assert.equal(run('strict.harmonicAssisted'),false);
+  assert.ok(run('strict.results.every(r=>!r.harmonicAssisted)'));
+});
+test('Model consistent requires the three-mode fit to include the lowest repeatable resonance',()=>{
+  run(`globalThis.mc={mass:26.7296,dia:38.1,rho:rhoOf('ag900'),E:82,nu:.37};globalThis.g4=geometryFamily(mc).candidates[4];globalThis.lowX=screenReading(makeReading([g4.f[0]*.955,g4.f[0],g4.f[1],g4.f[2]]),mc,true);`);
+  assert.equal(run('lowX.fieldPosition'),'compatible');
+  assert.equal(run('lowX.fit.state'),'compatible');
+  assert.equal(run('resultTitle(lowX,true)'),'Primary frequency in band');
+  assert.match(run('lowX.reason'),/does not explain the lowest resonance/);
 });
 test('an exact strike harmonic is displayed but excluded from modal scoring',()=>{
   run(`globalThis.sov=flat.find(x=>x.n==='Sovereign');globalThis.sa=ALLOYS[sov.a];globalThis.sc={name:sov.n,key:sov.a,mass:8,dia:22,rho:rhoOf(sov.a),E:sa.E,nu:sa.nu,family:FAMILY_DEFAULTS};globalThis.sovReading=makeReading([5409,5577,10817,12522]);globalThis.sf=acousticFingerprint(sovReading,sc);`);
@@ -153,13 +188,13 @@ test('verified-dinar pattern keeps an in-band primary family despite an unexplai
   assert.equal(run('dl.state'),'compatible');
   assert.equal(run('dl.diagnostic'),'primary-consistent-secondary-unresolved');
   assert.match(run('dl.reason'),/independent metal test/i);
-  assert.equal(run('resultTitle(dl,false)'),'Primary frequency checks out');
+  assert.equal(run('resultTitle(dl,false)'),'PASS');
 });
 
 test('a loud upper tone cannot hide a lower repeatable in-band resonance',()=>{
   run(`globalThis.loudDinar=makeReading([6468.8,14669.5]);loudDinar.strikes.forEach(s=>{s.f0=14669.5;s.peaks.forEach(p=>p.mag=p.f>10000?1:.1)});loudDinar.f0=14669.5;globalThis.loudLite=screenReading(loudDinar,dc,false);globalThis.loudPro=screenReading(loudDinar,dc,true);`);
   assert.equal(run('loudLite.primary.family.centre'),6468.8);
-  assert.equal(run('resultTitle(loudLite,false)'),'Primary frequency checks out');
+  assert.equal(run('resultTitle(loudLite,false)'),'PASS');
   assert.equal(run('resultTitle(loudPro,true)'),'Primary frequency in band');
   assert.equal(run('loudPro.fit.matchedModeCount')<3,true);
 });

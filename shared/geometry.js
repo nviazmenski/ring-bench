@@ -88,7 +88,7 @@ function recurringPeaks(reading){
   const strikes=reading.strikes,first=strikes[0],used=strikes.map(()=>new Set()),out=[];
   for(const p of first.peaks.slice().sort((a,b)=>a.f-b.f)){
     // The 1% cap is not permission to switch between resolved neighbors.
-    // Bound each match by half the nearest within-tap separation at both ends.
+    // Bound each match by 45% of the nearest within-tap separation at both ends.
     const referenceGap=Math.min(Infinity,...first.peaks.filter(q=>q!==p).map(q=>Math.abs(q.f-p.f)));
     const picks=strikes.slice(1).map((s,k)=>s.peaks.map((q,i)=>{
       const gap=Math.min(Infinity,...s.peaks.filter(v=>v!==q).map(v=>Math.abs(v.f-q.f)));
@@ -126,6 +126,11 @@ function modalFamilies(reading,splitPct=MODE_SPLIT_CLUSTER_PCT){
 }
 function scoringFamilies(reading){return modalFamilies(reading).filter(f=>f.harmonicOf===undefined);}
 function scoringTracks(reading){return scoringFamilies(reading).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index})));}
+// A plate mode can sit near a whole-number multiple of a lower tone by coincidence;
+// (1,1) is about 4.01x (2,0) on a flat silver plate. Such tones stay out of scoring,
+// but the joint fit may use one above its parent when no fit exists without it.
+function harmonicCandidateTracks(reading){return modalFamilies(reading).filter(f=>f.harmonicOf!==undefined).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index,parentIndex:f.harmonicOf,harmonicCandidate:true})));}
+function inFamily(f,family){return !!family&&Number.isFinite(f)&&f>=Math.min(...family.frequencies)*(1-1e-9)&&f<=Math.max(...family.frequencies)*(1+1e-9);}
 function plateRatioEvidence(reading,c){
   const family=geometryFamily(c),families=scoringFamilies(reading),pairs=[];
   if(!family.valid)return pairs;
@@ -181,23 +186,24 @@ function primaryResonanceEvidence(fingerprint){
 // the explicitly allowed material/dimension uncertainty; each ratio must fit too.
 function fitGeometryFamily(reading,c){
   const cacheKey=JSON.stringify(c),cache=fitCache.get(reading)||new Map();if(cache.has(cacheKey))return cache.get(cacheKey);
-  const family=geometryFamily(c),observed=scoringTracks(reading).filter(p=>p.f<=reading.usableHz),results=[];
-  if(observed.length<2||reading.strikes.length<2||!family.valid)return {family,observed,results,best:null,supported:[],state:"insufficient"};
+  const family=geometryFamily(c),observed=scoringTracks(reading).filter(p=>p.f<=reading.usableHz),harmonics=harmonicCandidateTracks(reading).filter(p=>p.f<=reading.usableHz),results=[];
+  if(observed.length<2||reading.strikes.length<2||!family.valid)return {family,observed,results,best:null,supported:[],identityFits:[],matchedModeCount:0,state:"insufficient"};
   const tolerance=family.options.fitPct/100;
   for(const g of family.candidates){
     const modes=g.f.map((f,i)=>({f,i})).filter(m=>m.f*family.lowScale<=reading.usableHz).sort((a,b)=>a.f-b.f);
     // Try every recurring tone as the lowest observed member of a mode pattern.
     // Each path may therefore include frequencies below the loudest resonance.
     for(const anchor of observed){
-    const upper=observed.filter(p=>p.f>anchor.f*1.08).slice(0,12);
+    const upper=observed.filter(p=>p.f>anchor.f*1.08).slice(0,12).concat(harmonics.filter(p=>p.f>anchor.f*1.08)).sort((a,b)=>a.f-b.f);
     for(let root=0;root<modes.length;root++){
       const base=modes[root],pairs=[{measured:anchor.f,predicted:base.f,mode:base.i,familyIndex:anchor.familyIndex}],paths=[];
       function visit(pi,mi,current){
         paths.push(current);
         for(let p=pi;p<upper.length;p++)for(let m=mi;m<modes.length;m++){
-          if(current.some(v=>v.familyIndex===upper[p].familyIndex))continue;
-          const ratioError=Math.abs((upper[p].f/anchor.f)/(modes[m].f/base.f)-1);
-          if(ratioError<=tolerance+2*g.numericalError)visit(p+1,m+1,current.concat({measured:upper[p].f,predicted:modes[m].f,mode:modes[m].i,familyIndex:upper[p].familyIndex}));
+          const u=upper[p];
+          if(current.some(v=>v.familyIndex===u.familyIndex)||u.harmonicCandidate&&!current.some(v=>v.familyIndex===u.parentIndex))continue;
+          const ratioError=Math.abs((u.f/anchor.f)/(modes[m].f/base.f)-1);
+          if(ratioError<=tolerance+2*g.numericalError)visit(p+1,m+1,current.concat({measured:u.f,predicted:modes[m].f,mode:modes[m].i,familyIndex:u.familyIndex,harmonicCandidate:!!u.harmonicCandidate}));
         }
       }
       visit(0,root+1,pairs);
@@ -209,15 +215,18 @@ function fitGeometryFamily(reading,c){
         const ratioErrors=match.slice(1).map(p=>Math.abs((p.measured/anchor.f)/(p.predicted/base.f)-1));
         const residual=Math.sqrt(absErrors.reduce((s,v)=>s+v*v,0)/match.length);
         const supported=Math.max(...absErrors,...ratioErrors)<=tolerance+2*g.numericalError;
-        results.push({geometry:g,matches:match,scale,residual,ratioResidual:Math.max(...ratioErrors),supported,rootMode:base.i,fundamentalObserved:base.i===g.f.indexOf(Math.min(...g.f))});
+        results.push({geometry:g,matches:match,scale,residual,ratioResidual:Math.max(...ratioErrors),supported,rootMode:base.i,fundamentalObserved:base.i===g.f.indexOf(Math.min(...g.f)),harmonicAssisted:match.some(p=>p.harmonicCandidate)});
       }
     }
     }
   }
   results.sort((a,b)=>Number(b.supported)-Number(a.supported)||b.matches.length-a.matches.length||a.residual-b.residual);
-  const best=results[0]||null,supported=results.filter(r=>r.supported&&r.matches.length>=3);
-  const identityFits=results.filter(r=>r.supported),matchedModeCount=Math.max(0,...identityFits.map(r=>r.matches.length));
-  const result={family,observed,results:results.slice(0,30),identityFits,best,supported,matchedModeCount,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
+  // Fits that use a harmonic candidate count only when no three-mode fit exists without one.
+  const strictFit=results.some(r=>!r.harmonicAssisted&&r.supported&&r.matches.length>=3);
+  const kept=results.filter(r=>!r.harmonicAssisted||!strictFit&&r.supported&&r.matches.length>=3);
+  const best=kept[0]||null,supported=kept.filter(r=>r.supported&&r.matches.length>=3);
+  const identityFits=kept.filter(r=>r.supported),matchedModeCount=Math.max(0,...identityFits.map(r=>r.matches.length));
+  const result={family,observed,results:kept.slice(0,30),identityFits,best,supported,matchedModeCount,harmonicAssisted:supported.length>0&&!strictFit,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
   cache.set(cacheKey,result);fitCache.set(reading,cache);return result;
 }
 
@@ -241,40 +250,65 @@ function estimateFundamental(r,c){
   return {f0,ambiguous,basis,reason,taps,spread,repeatable:complete&&taps.length>=2&&spread<=.01,dominantHz:r.f0};
 }
 
-function screenReading(r,c,requirePattern=false){
+// The measured lowest resonance, shared by the headline figure and the spectrum marker.
+function lowestRepeatableHz(r,c){
+  if(!r)return null;
+  const fingerprint=acousticFingerprint(r,c),primary=primaryResonanceEvidence(fingerprint);
+  if(fingerprint.repeatable&&primary.family)return primary.family.centre;
+  const f0=estimateFundamental(r,c).f0;return Number.isFinite(f0)?f0:null;
+}
+
+// Neither edition gives any result until every required tap is recorded.
+// Lite then answers PASS or NO PASS; Pro reports the model evidence.
+function screenReading(r,c,requirePattern=false,requiredTaps=requirePattern?3:2){
   const estimate=estimateFundamental(r,c),band=geometryFamily(c),fingerprint=acousticFingerprint(r,c),repeatable=estimate.repeatable,fit=fitGeometryFamily(r,c);
   const primary=primaryResonanceEvidence(fingerprint),fieldPosition=bandPosition(primary.family?.centre,band);
+  const taps=r.strikes.length,provisional=taps<requiredTaps,matched=fit.matchedModeCount||0;
+  const hz=primary.family?Math.round(primary.family.centre):null,range=band.valid?Math.round(band.low)+"–"+Math.round(band.high)+" Hz":"";
   let state="inconclusive",reason="",diagnostic="inconclusive";
-  const provisional=r.strikes.length<2,matched=fit.matchedModeCount||0;
   if(!band.valid)reason="No physically admissible shape in the entered family. Review geometry assumptions.";
   else if(r.strikes.some(s=>s.offwindow))reason="The recorded tone’s identity is uncertain. Try another strike with the same support.";
-  else if(provisional){
-    if(!requirePattern&&fingerprint.families.filter(f=>f.harmonicOf===undefined).length===1&&fieldPosition==="compatible"&&primary.insideLowest){
-      state="compatible";diagnostic="primary-band-provisional";reason="One measured resonance falls within the provisional lowest-mode band. Repeat the tap before relying on this acoustic screen.";
-    }else reason="One tap cannot establish a repeatable lowest resonance. Record another strike with the same support.";
+  else if(provisional){diagnostic="incomplete";reason="Tap "+taps+" of "+requiredTaps+" recorded. No result is given until all "+requiredTaps+" taps are recorded with the same grip and strike.";}
+  else if(!requirePattern){
+    state="no-pass";
+    if(!fingerprint.repeatable||!primary.family){diagnostic="not-repeatable";reason="The taps did not produce the same pitch, so this coin cannot pass. Retest with the same grip and strike position.";}
+    else if(fieldPosition==="compatible"&&primary.insideLowest){
+      state="compatible";diagnostic=primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":"primary-band-incomplete";
+      reason="The lowest repeatable pitch ("+hz+" Hz) is inside the expected range for this coin ("+range+"). This is an acoustic screen only: confirm weight and diameter and use an independent metal test, such as a Sigma, before relying on the coin.";
+    }else if(fieldPosition==="anomalous"){
+      const below=primary.family.centre<band.low;diagnostic=below?"primary-outside-model":"primary-above-band";
+      reason="The lowest repeatable pitch ("+hz+" Hz) is "+(below?"below":"above")+" the expected range for this coin ("+range+"). Check the coin type, weight and diameter, and do not rely on this coin without independent testing.";
+    }else{diagnostic="primary-band-edge";reason="The lowest repeatable pitch ("+hz+" Hz) is too close to the edge of the expected range ("+range+") to pass. Retest; if it stays there, do not rely on this coin without independent testing.";}
   }else if(!fingerprint.repeatable||!primary.family)reason="No stable resonance was retained across all taps. Repeat with the same support and strike position.";
   else if(fieldPosition==="compatible"&&primary.insideLowest){
-    const hz=Math.round(primary.family.centre),extra=primary.secondaryOutside.map(a=>Math.round(a.family.centre)+" Hz").join(", ");
-    if(requirePattern&&fit.state==="compatible"&&!estimate.ambiguous&&estimate.f0!==null&&!primary.secondaryOutside.length){
-      state="compatible";diagnostic="model-consistent";reason="The lowest repeatable resonance ("+hz+" Hz) is in band and at least three distinct modes fit the current geometry and material assumptions. Check mass, diameter and metal independently.";
+    const extra=primary.secondaryOutside.map(a=>Math.round(a.family.centre)+" Hz").join(", ");
+    // A three-mode fit that starts above the lowest resonance leaves that resonance unexplained.
+    const fitCoversPrimary=inFamily(estimate.f0,primary.family);
+    if(fit.state==="compatible"&&!estimate.ambiguous&&fitCoversPrimary&&!primary.secondaryOutside.length){
+      state="compatible";diagnostic="model-consistent";reason="The lowest repeatable resonance ("+hz+" Hz) is in band and at least three distinct modes, including it, fit the current geometry and material assumptions. "+(fit.harmonicAssisted?"One fitted tone is also close to a whole-number multiple of a lower tone; it was counted as a plate mode because it fits the pattern. ":"")+"Check mass, diameter and metal independently.";
     }else{
-      state=requirePattern?"evidence":"compatible";
-      diagnostic=primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":"primary-band-incomplete";
-      reason="The lowest repeatable resonance ("+hz+" Hz) falls within the provisional model band. "+(requirePattern?"The best joint fit explains "+matched+" distinct mode(s); three are required for a full Pro model fit. ":"")+(extra?"Higher recurring tones at "+extra+" are not explained by this model. ":"")+"This acoustic screen checks out; confirm mass and diameter and use an independent metal test, such as a Sigma, before relying on the coin.";
+      state="evidence";diagnostic=primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":"primary-band-incomplete";
+      const fitNote=fit.state!=="compatible"?"The best joint fit explains "+matched+" distinct mode(s); three are required for a full Pro model fit. ":estimate.ambiguous||estimate.f0===null?"Several modes fit, but which one is the lowest mode remains ambiguous. ":!fitCoversPrimary?"The three-mode fit starts at "+Math.round(estimate.f0)+" Hz and does not explain the lowest resonance. ":"";
+      reason="The lowest repeatable resonance ("+hz+" Hz) falls within the provisional model band. "+fitNote+(extra?"Higher recurring tones at "+extra+" are not explained by this model. ":"")+"Confirm mass and diameter and use an independent metal test, such as a Sigma, before relying on the coin.";
     }
-  }else if(fieldPosition==="anomalous"){
-    if(primary.family.centre>band.high){state="evidence";diagnostic="lower-mode-unconfirmed";reason="The lowest frequency retained across taps ("+Math.round(primary.family.centre)+" Hz) is above the lowest-mode band. The lower mode may not have been excited or detected. Try another strike position, check the entered dimensions, and verify independently.";}
-    else{state="anomalous";diagnostic="primary-outside-model";reason="The lowest repeatable resonance ("+Math.round(primary.family.centre)+" Hz) is below the current model band. Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
-  }else{state="evidence";diagnostic="primary-band-edge";reason="The lowest repeatable resonance is near a model-band edge or has no clear lowest-mode assignment. Check dimensions and repeat the strike.";}
+  }else if(fieldPosition==="anomalous"&&primary.family.centre>band.high){
+    // Above the band, a missed lower mode is plausible only if the recurring tones fit as upper modes.
+    const missedLower=!primary.assignment?.outside&&(fit.identityFits||[]).some(f=>!f.fundamentalObserved&&f.matches[0].familyIndex===primary.family.index);
+    if(missedLower){state="evidence";diagnostic="lower-mode-unconfirmed";reason="The lowest frequency retained across taps ("+hz+" Hz) is above the lowest-mode band ("+range+"), but the recurring tones fit the model as upper modes. The lowest mode may not have been excited. Try another strike position and verify independently.";}
+    else{state="anomalous";diagnostic="primary-above-model";reason="The lowest repeatable resonance ("+hz+" Hz) is above the lowest-mode band ("+range+") and the recurring tones do not fit the model as upper modes. Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
+  }else if(fieldPosition==="anomalous"){state="anomalous";diagnostic="primary-outside-model";reason="The lowest repeatable resonance ("+hz+" Hz) is below the current model band ("+range+"). Check the coin type, mass, diameter and support, then verify independently. This is a model mismatch, not a counterfeit finding.";}
+  else{state="evidence";diagnostic="primary-band-edge";reason="The lowest repeatable resonance is near a model-band edge or has no clear lowest-mode assignment. Check dimensions and repeat the strike.";}
   return {state,reason,diagnostic,primary,fieldPosition,band,repeatable,provisional,estimate,fingerprint,fit};
 }
 
 function resultTitle(e,pro){
-  if(e.state==="compatible")return pro?"Model consistent":"Primary frequency checks out";
+  if(e.diagnostic==="incomplete")return "Test incomplete";
+  if(!pro)return e.state==="compatible"?"PASS":e.state==="no-pass"?"NO PASS":"No result";
+  if(e.state==="compatible")return "Model consistent";
   if(e.state==="anomalous")return "Primary frequency outside model";
   if(e.diagnostic==="lower-mode-unconfirmed")return "Lower mode not established";
   if(e.diagnostic==="primary-band-edge")return "Near model band edge";
-  if(pro&&(e.diagnostic==="primary-consistent-secondary-unresolved"||e.diagnostic==="primary-band-incomplete"))return "Primary frequency in band";
-  if(pro&&e.state==="evidence")return "Model fit unresolved";
+  if(e.diagnostic==="primary-consistent-secondary-unresolved"||e.diagnostic==="primary-band-incomplete")return "Primary frequency in band";
+  if(e.state==="evidence")return "Model fit unresolved";
   return "Inconclusive";
 }

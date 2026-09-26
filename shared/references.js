@@ -41,36 +41,10 @@ function validReference(r){
 function referenceState(ref,settings){
   return {usable:validReference(ref)&&ref.settings.coin===settings.coin&&ref.settings.alloy===settings.alloy};
 }
-function referenceRatios(ref){
-  const first=ref.strikes[0],used=ref.strikes.map(()=>new Set()),out=[];
-  for(const p of first.peaks.filter(p=>p.f>first.f0*1.08).sort((a,b)=>a.f-b.f)){
-    const ratio=p.f/first.f0,picks=ref.strikes.slice(1).map((s,k)=>s.peaks.map((q,i)=>({i,ratio:q.f/s.f0,error:Math.abs(q.f/s.f0/ratio-1)}))
-      .filter(q=>!used[k+1].has(q.i)&&q.ratio>1.08&&q.error<=RULES.repeatability).sort((a,b)=>a.error-b.error)[0]);
-    if(picks.every(Boolean)){picks.forEach((p,k)=>used[k+1].add(p.i));out.push(median([ratio,...picks.map(p=>p.ratio)]));}
-  }
-  return out;
-}
-function empiricalMatches(strike,ratios){
-  const used=new Set(),matches=[];
-  ratios.forEach((ratio,index)=>{
-    const best=strike.peaks.map((p,i)=>({i,f:p.f,error:Math.abs(p.f/strike.f0/ratio-1)}))
-      .filter(p=>!used.has(p.i)&&p.f>strike.f0*1.08&&p.error<=RULES.referencePitch).sort((a,b)=>a.error-b.error)[0];
-    if(best){used.add(best.i);matches.push({index,f:best.f,error:best.error});}
-  });return matches;
-}
-function evaluateReading(r,c,ref){
-  const reference=referenceState(ref,r.settings),expected=reference.usable?ref.f0:P(c).f[0];
-  const dev=r.f0/expected-1,band=reference.usable?RULES.referencePitch:null;
-  const repeatable=r.strikes.length>=2&&r.spread<=RULES.repeatability,uncertain=r.strikes.some(s=>s.offwindow);
-  let extra=r.commonModes.length;
-  if(reference.usable){
-    const matches=r.strikes.map(s=>empiricalMatches(s,referenceRatios(ref)));
-    extra=matches[0].filter(m=>{const fs=matches.map(ms=>ms.find(x=>x.index===m.index)?.f);return fs.every(Number.isFinite)&&(Math.max(...fs)-Math.min(...fs))/median(fs)<=RULES.repeatability;}).length;
-  }
-  const selfReference=reference.usable&&r.strikes.some(s=>s.when&&ref.strikes.some(t=>t.when===s.when));
-  const pitchOK=reference.usable?Math.abs(dev)<=band:null;
-  const state=selfReference?"reference":uncertain?"uncertain":r.strikes.length<2?"preliminary":!repeatable?"unstable":!reference.usable?"theory":pitchOK?"consistent":"mismatch";
-  return {reference,expected,dev,band,repeatable,uncertain,extra,selfReference,pitchOK,state};
+// Relabel saved data whose catalogue preset was corrected; everything else is returned as-is.
+function migrateSaved(r){
+  const alloy=r?.settings&&ALLOY_SUCCESSORS[r.settings.coin+"|"+r.settings.alloy];
+  return alloy?{...r,settings:{...r.settings,alloy},migratedFrom:{coin:r.settings.coin,alloy:r.settings.alloy}}:r;
 }
 function referenceFromReading(r,note){
   const fingerprint=r.fingerprint?{version:1,taps:r.fingerprint.taps,tracks:r.fingerprint.tracks.map(t=>({f:t.f,frequencies:t.frequencies,spread:t.spread,snrDb:t.snrDb,relativeDb:t.relativeDb,relativeRangeDb:t.relativeRangeDb,persistenceDropDb:t.persistenceDropDb})),families:r.fingerprint.families.map(f=>({centre:f.centre,frequencies:f.frequencies,split:f.split,kind:f.kind,harmonicOf:f.harmonicOf??null,harmonicOrder:f.harmonicOrder??null,harmonicError:f.harmonicError??null})),ratios:r.fingerprint.ratios.map(x=>({frequencies:x.frequencies,observed:x.observed,joint:!!x.joint,bestModelRatio:x.best?.modelRatio??null,bestRatioError:x.best?.ratioError??null,bestScale:x.best?.scale??null})),decay:r.fingerprint.decay}:null;
@@ -80,7 +54,7 @@ function referenceFromReading(r,note){
 // Old full-app references require explicit import and renewed provenance confirmation.
 function importReferences(data){
   const candidates=Array.isArray(data)?data:validReference(data)?[data]:data?.references?Object.values(data.references):data?.settings&&data?.strikes?[data]:Object.values(data||{});
-  return candidates.map(raw=>{
+  return candidates.map(migrateSaved).map(raw=>{
     if(validReference(raw))return raw;
     if(raw?.version===2&&raw.trusted&&raw.settings&&raw.strikes&&raw.note){
       const converted={...raw,format:"ringbench-reference",version:2,strikes:raw.strikes.map(s=>({...s,offwindow:s.offwindow??false}))};

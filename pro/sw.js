@@ -1,4 +1,4 @@
-const VERSION="2026-09-23.pro-4.6";
+const VERSION="2026-09-26.pro-4.8";
 const ROOT=new URL(self.registration.scope),PREFIX="ringbench-pro:"+encodeURIComponent(ROOT.pathname)+":",CACHE=PREFIX+VERSION;
 const FILES=["index.html","pro.js","manifest.json","icon.svg","apple-touch-icon.png","icon-512.png",...["coins.js","model.js","geometry.js","acoustics.js","references.js","app.js","styles.css"].map(n=>"../shared/"+n)];
 const ALLOWED=new Set(FILES.map(n=>new URL(n,ROOT).href));

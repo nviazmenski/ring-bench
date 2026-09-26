@@ -2,9 +2,8 @@ const EL={Au:19.30,Ag:10.49,Cu:8.96,Pt:21.45,Pd:12.02,Zn:7.14,Ni:8.90,Fe:7.87,Cr
 const ALLOYS={
   au900cu:{n:".900 Au / .100 Cu — LMU, Imperial Russia",f:{Au:.900,Cu:.100},E:85,nu:.42,mt:"gold"},
   au986cu:{n:".986 Au / .014 Cu — ducat standard",      f:{Au:.986,Cu:.014},E:80,nu:.42,mt:"gold"},
-  au9661 :{n:".9661 Au / bal Cu — Numista, YU ducat",   f:{Au:.9661,Cu:.0339},E:80,nu:.42,mt:"gold"},
-  au9167 :{n:".9167 Au / Ag / Cu — crown gold, 22k",    f:{Au:.9167,Ag:.03,Cu:.0533},E:82,nu:.42,mt:"gold"},
-  au917cu:{n:".917 Au / .083 Cu — Ottoman lira standard",f:{Au:.917,Cu:.083},E:80,nu:.42,mt:"gold"},
+  au9167 :{n:".9167 Au / .03 Ag / .0533 Cu — American Gold Eagle",f:{Au:.9167,Ag:.03,Cu:.0533},E:82,nu:.42,mt:"gold"},
+  au917cu:{n:".917 Au / .083 Cu — 22k gold-copper: Krugerrand, Sovereign, Ottoman lira",f:{Au:.917,Cu:.083},E:80,nu:.42,mt:"gold"},
   au900ag:{n:".900 Au / .100 Ag",                       f:{Au:.900,Ag:.100},E:80,nu:.42,mt:"gold"},
   au750  :{n:".750 Au / Ag / Cu — 18k, underfine",      f:{Au:.750,Ag:.10,Cu:.150},E:88,nu:.41,mt:"gold"},
   au999  :{n:".9999 Au — fine",                         f:{Au:1.0},E:79,nu:.42,mt:"gold"},
@@ -58,7 +57,8 @@ const COINS=[
  {region:"Serbia",g:"Serbia — silver",items:[
   {n:"50 Para 1875–1915 · KM#24",    m:2.5000,  d:18.00, a:"ag835"},
   {n:"1 Dinar 1875–1915 · KM#25",    m:5.0000,  d:22.50, a:"ag835"},
-  {n:"2 Dinara 1875–1915 · KM#26",   m:10.0000, d:28.00, a:"ag835"},
+  {n:"2 Dinara 1879, 1897 · Milan, Aleksandar I", m:10.0000, d:27.00, a:"ag835"},
+  {n:"2 Dinara 1904–1915 · Petar I · KM#26", m:10.0000, d:28.00, a:"ag835"},
   {n:"5 Dinara 1879 · KM#12",        m:25.0000, d:37.00, a:"ag900"},
   {n:"5 Dinara 1904 · KM#27",        m:25.0000, d:37.00, a:"ag900"},
  ]},
@@ -119,15 +119,30 @@ const COINS=[
   {n:"5 Leva 1884–94 · KM#7/15/18",     m:25.0000, d:37.00, a:"ag900"},
  ]},
  {region:"Britain",g:"Britain — gold",items:[
-  {n:"Sovereign",                    m:7.9881,  d:22.05, a:"au9167"},
-  {n:"Half Sovereign",               m:3.9941,  d:19.30, a:"au9167"},
+  {n:"Sovereign",                    m:7.9881,  d:22.05, a:"au917cu"},
+  {n:"Half Sovereign",               m:3.9941,  d:19.30, a:"au917cu"},
  ]},
- {region:"Britain",g:"Britain — one planchet, three metals",items:[
-  {n:"Crown · 1816–1965",            m:28.2759, d:38.61, a:"ag925"},
-  {n:"Halfcrown · 1816–1967",        m:14.1380, d:32.31, a:"ag925"},
-  {n:"Florin · 1849–1970",           m:11.3104, d:28.50, a:"ag925"},
-  {n:"Shilling · 1816–1970",         m:5.6552,  d:23.50, a:"ag925"},
-  {n:"Sixpence · 1816–1970",         m:2.8276,  d:19.50, a:"ag925"},
+ /* One planchet, three metals: weight and diameter stayed the same, the alloy did not. */
+ {region:"Britain",g:"Britain — sterling silver, to 1919",items:[
+  {n:"Crown · sterling · 1816–1919",       m:28.2759, d:38.61, a:"ag925"},
+  {n:"Halfcrown · sterling · 1816–1919",   m:14.1380, d:32.31, a:"ag925"},
+  {n:"Florin · sterling · 1849–1919",      m:11.3104, d:28.50, a:"ag925"},
+  {n:"Shilling · sterling · 1816–1919",    m:5.6552,  d:23.50, a:"ag925"},
+  {n:"Sixpence · sterling · 1816–1919",    m:2.8276,  d:19.50, a:"ag925"},
+ ]},
+ {region:"Britain",g:"Britain — .500 silver, 1920–1946",items:[
+  {n:"Crown · .500 silver · 1920–1946",    m:28.2759, d:38.61, a:"ag500"},
+  {n:"Halfcrown · .500 silver · 1920–1946",m:14.1380, d:32.31, a:"ag500"},
+  {n:"Florin · .500 silver · 1920–1946",   m:11.3104, d:28.50, a:"ag500"},
+  {n:"Shilling · .500 silver · 1920–1946", m:5.6552,  d:23.50, a:"ag500"},
+  {n:"Sixpence · .500 silver · 1920–1946", m:2.8276,  d:19.50, a:"ag500"},
+ ]},
+ {region:"Britain",g:"Britain — cupronickel, 1947 onward",items:[
+  {n:"Crown · cupronickel · 1947–1965",    m:28.2759, d:38.61, a:"cuni75"},
+  {n:"Halfcrown · cupronickel · 1947–1967",m:14.1380, d:32.31, a:"cuni75"},
+  {n:"Florin · cupronickel · 1947–1970",   m:11.3104, d:28.50, a:"cuni75"},
+  {n:"Shilling · cupronickel · 1947–1970", m:5.6552,  d:23.50, a:"cuni75"},
+  {n:"Sixpence · cupronickel · 1947–1970", m:2.8276,  d:19.50, a:"cuni75"},
  ]},
  {region:"Switzerland",g:"Switzerland — gold",items:[
   {n:"10 Francs Vreneli 1911–22 · KM#36",  m:3.2258,  d:19.00, a:"au900cu"},
@@ -189,12 +204,25 @@ const COINS=[
  ]},
  {region:"Modern bullion",g:"Modern bullion",items:[
   {n:"Gold Eagle 1 oz",              m:33.931,  d:32.70, a:"au9167"},
-  {n:"Krugerrand 1 oz",              m:33.930,  d:32.77, a:"au9167"},
+  {n:"Krugerrand 1 oz",              m:33.930,  d:32.77, a:"au917cu"},
   {n:"Maple Leaf 1 oz",              m:31.103,  d:30.00, a:"au999"},
   {n:"Silver Eagle 1 oz",            m:31.103,  d:40.60, a:"ag999"},
   {n:"Silver Maple 1 oz",            m:31.103,  d:38.00, a:"ag999"},
  ]},
 ];
 const flat=[];COINS.forEach(g=>g.items.forEach(c=>flat.push(c)));
+
+/* ───────── superseded catalogue identities (Lite 3.5 / Pro 4.8) ─────────
+   A split entry cannot be reassigned automatically, so saved data under an old
+   name is kept unassigned, never deleted. A corrected preset migrates. */
+const CATALOGUE_SUCCESSORS={
+ "2 Dinara 1875–1915 · KM#26":["2 Dinara 1879, 1897 · Milan, Aleksandar I","2 Dinara 1904–1915 · Petar I · KM#26"],
+ "Crown · 1816–1965":["Crown · sterling · 1816–1919","Crown · .500 silver · 1920–1946","Crown · cupronickel · 1947–1965"],
+ "Halfcrown · 1816–1967":["Halfcrown · sterling · 1816–1919","Halfcrown · .500 silver · 1920–1946","Halfcrown · cupronickel · 1947–1967"],
+ "Florin · 1849–1970":["Florin · sterling · 1849–1919","Florin · .500 silver · 1920–1946","Florin · cupronickel · 1947–1970"],
+ "Shilling · 1816–1970":["Shilling · sterling · 1816–1919","Shilling · .500 silver · 1920–1946","Shilling · cupronickel · 1947–1970"],
+ "Sixpence · 1816–1970":["Sixpence · sterling · 1816–1919","Sixpence · .500 silver · 1920–1946","Sixpence · cupronickel · 1947–1970"],
+};
+const ALLOY_SUCCESSORS={"Krugerrand 1 oz|au9167":"au917cu","Sovereign|au9167":"au917cu","Half Sovereign|au9167":"au917cu"};
 
 

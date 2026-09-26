@@ -1,5 +1,21 @@
 # RingBench geometry family, revision 3
 
+## Verdict rules — Pro 4.8 / Lite 3.5 (current)
+
+This section is the current verdict logic. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged.
+
+**Tap count.** No result is given until the edition's full tap count is recorded: two for Lite, three for Pro. Before that, only measurements are shown.
+
+**Lite.** The lowest repeatable non-harmonic family is compared with the guarded lowest-mode band for the catalogue coin. Strictly inside the guards is PASS. Anything else is NO PASS: below the band, above it, within a guard, or no tone repeating across both taps. Lite cannot tell a missed lowest mode from a coin that rings high, so it does not try.
+
+**Pro, above the band.** A missed lowest mode stays open ("Lower mode not established") only when a supported identity fit anchors the lowest recurring family on a higher mode with the lowest mode unobserved, and that family lies inside a modeled envelope. Otherwise the result is outside the model. A lone tone above the band therefore cannot keep that possibility open.
+
+**Pro, Model consistent.** In addition to the three-mode joint fit, an unambiguous lowest-mode estimate and no unexplained secondary family, the fitted lowest mode must lie in the lowest repeatable family.
+
+**Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits count only when no three-mode fit exists without one. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
+
+**Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
+
 ## Field screen — Pro 4.6 / Lite 3.4
 
 The initial acoustic screen uses the lowest retained, non-harmonic family recurring across every accepted tap, independent of which peak is loudest and independent of upper-mode fit quality. This is an observed frequency candidate, not a proven fundamental: a still-lower coin mode might not be excited or detected. Two taps (Lite) or three (Pro) establish repetition under the existing 1% tracking rule; one Lite tap can display only a provisional result. A matching candidate inside the guarded lowest-mode band supports a limited field result. It cannot establish material or authenticity, so the user is directed to check physical measurements and metal independently.

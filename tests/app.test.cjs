@@ -13,7 +13,7 @@ class Element{
   remove(){}
   querySelectorAll(){return [];}
 }
-function app(edition="lite",legacy=false){
+function app(edition="lite",legacy=false,seed={}){
   const html=fs.readFileSync(legacy?path.join(__dirname,"fixtures/previous-lite.html"):path.join(__dirname,"../"+edition+"/index.html"),"utf8");
   const code=legacy?html.match(/<script>([\s\S]*?)<\/script>/)[1]:[...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m=>fs.readFileSync(path.resolve(__dirname,"../"+edition,m[1]),"utf8")).join("\n");
   const elements={};
@@ -26,8 +26,11 @@ function app(edition="lite",legacy=false){
     }
   }
   const foot=new Element(),body=new Element();body.dataset={};
-  const document={getElementById:id=>elements[id]||null,createElement:tag=>new Element(tag),querySelector:s=>s==='.foot'?foot:new Element(),querySelectorAll:()=>[],addEventListener(){},body};
-  const storage=new Map();
+  // Enough DOM for pro.js: inserted markup registers its ids so the Pro-only panels are testable.
+  const register=markup=>{for(const m of markup.matchAll(/<(\w+)\b([^>]*\bid="([^"]+)"[^>]*)>/g))elements[m[3]]??=new Element(m[1]);};
+  const node=()=>Object.assign(new Element(),{querySelector:()=>node(),insertAdjacentHTML:(where,markup)=>register(markup),insertBefore(){}});
+  const document={getElementById:id=>elements[id]||null,createElement:tag=>new Element(tag),querySelector:s=>s==='.foot'?foot:node(),querySelectorAll:()=>[],addEventListener(){},body};
+  const storage=new Map(Object.entries(seed));
   const context=vm.createContext({document,window:{addEventListener(){},confirm(){return true;}},navigator:{},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
     getComputedStyle:()=>({getPropertyValue:()=>''}),requestAnimationFrame:()=>{},setTimeout,clearTimeout,console,Blob,URL,crypto:require('node:crypto').webcrypto,crypto:require('node:crypto').webcrypto});
   vm.runInContext(code,context);
@@ -79,7 +82,7 @@ test('unverified user WAV regression: preserve four tones without manufacturing 
     assert.equal(e.fingerprint.tracks.length,4);
     assert.ok(e.fingerprint.tracks.every((t,i)=>Math.abs(t.f-[5210,5428,12130,12165][i])<3));
     assert.equal(e.fit.matchedModeCount,2);
-    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Primary frequency in band':'Primary frequency checks out');
+    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Primary frequency in band':'PASS');
     assert.equal(e.fingerprint.envelope.outside.length,0);
   }
 });
@@ -87,11 +90,19 @@ async function tap(a,f){
   a.context.x=synthetic(a,f);
   return a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)");
 }
-test("both editions boot with all 94 catalogue entries and identical theoretical predictions",()=>{
+test("both editions boot with all 105 catalogue entries and identical theoretical predictions",()=>{
   const lite=app(),pro=app("pro");
-  assert.equal(lite.run("flat.length"),94);assert.equal(pro.run("flat.length"),94);
-  const previous=app("lite",true);assert.equal(lite.run("JSON.stringify(COINS)"),previous.run("JSON.stringify(COINS)"));
+  assert.equal(lite.run("flat.length"),105);assert.equal(pro.run("flat.length"),105);
   assert.equal(lite.run("JSON.stringify(COINS)"),pro.run("JSON.stringify(COINS)"));
+  // Every earlier entry is either unchanged, relabelled to a corrected preset, or has named successors.
+  const previous=JSON.parse(app("lite",true).run("JSON.stringify(COINS.flatMap(g=>g.items))"));
+  const now=new Map(JSON.parse(lite.run("JSON.stringify(flat)")).map(c=>[c.n,c]));
+  const successors=JSON.parse(lite.run("JSON.stringify(CATALOGUE_SUCCESSORS)")),alloys=JSON.parse(lite.run("JSON.stringify(ALLOY_SUCCESSORS)"));
+  for(const old of previous){
+    if(successors[old.n]){assert.ok(successors[old.n].every(n=>now.has(n)),old.n);assert.ok(!now.has(old.n),old.n);continue;}
+    const c=now.get(old.n);assert.ok(c,old.n);assert.equal(c.m,old.m,old.n);assert.equal(c.d,old.d,old.n);assert.equal(c.a,alloys[old.n+"|"+old.a]||old.a,old.n);
+  }
+  assert.equal(lite.run("Object.hasOwn(ALLOYS,'au9661')"),false);
   assert.equal(lite.run("JSON.stringify(P(ringBench.current()))"),pro.run("JSON.stringify(P(ringBench.current()))"));
   for(const a of [lite,pro])a.run("flat.forEach((c,i)=>{ringBench.chooseCoin(i);if(!Number.isFinite(P(ringBench.current()).f[0]))throw Error(c.n)})");
 });
@@ -162,14 +173,16 @@ test("a broadband noise knock does not become a coin tone",async()=>{
   a.run("globalThis.x=new Float32Array(31680);let seed=12345;for(let i=0;i<x.length;i++){seed=(1664525*seed+1013904223)>>>0;const noise=seed/4294967296*2-1;x[i]=noise*(i<2880?.0001:.3*Math.exp(-(i-2880)/4800));}");
   await assert.rejects(a.run("analyseInner(x,48000,ringBench.current(),ringBench.snapshot(),{kind:'file'},2880)"),/tonal|stable ringing/);
 });
-test("one pitch-only tap is useful; Lite completes on two and Pro completes on three",async()=>{
+test("no result before the last tap; Lite completes on two and Pro completes on three",async()=>{
   for(const edition of ["lite","pro"]){
-    const a=app(edition),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");
-    assert.equal(await tap(a,f),true);assert.equal(a.run("ringBench.getState().reading.complete"),false);
-    assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,edition==="lite"?"Primary frequency checks out · provisional":"Inconclusive");
-    await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),edition==="lite");
-    if(edition==="pro"){await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),true);}
-    assert.equal(a.run("ringBench.getState().reading.commonModes.length"),0);
+    const a=app(edition),f=a.run("P(ringBench.current()).f[0]"),target=edition==="lite"?2:3;a.run("ringBench.newSession({kind:'file'})");
+    for(let i=1;i<target;i++){
+      assert.equal(await tap(a,f),true);assert.equal(a.run("ringBench.getState().reading.complete"),false);
+      assert.equal(a.e.result.hidden,false);assert.equal(a.e.resultTitle.textContent,"Test incomplete");
+      assert.match(a.e.resultSummary.textContent,new RegExp("Tap "+i+" of "+target));
+    }
+    await tap(a,f);assert.equal(a.run("ringBench.getState().reading.complete"),true);
+    assert.equal(a.e.resultTitle.textContent,edition==="lite"?"PASS":"Primary frequency in band");
   }
 });
 test("keeping one tap never claims repeatability; bad second tap retains good first",async()=>{
@@ -177,7 +190,8 @@ test("keeping one tap never claims repeatability; bad second tap retains good fi
   a.context.x=new Float32Array(31680).fill(1);
   assert.equal(await a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)"),false);
   assert.equal(a.run("ringBench.getState().reading.strikes.length"),1);assert.match(a.e.status.textContent,/retained/);
-  a.run("ringBench.finish()");assert.equal(a.run("evaluateReading(ringBench.getState().reading,ringBench.current(),null).repeatable"),false);
+  a.run("ringBench.finish()");assert.equal(a.e.resultTitle.textContent,"Test incomplete");
+  assert.equal(a.run("screenReading(ringBench.getState().reading,ringBench.current()).fingerprint.repeatable"),false);
 });
 test("reference formats travel between Lite and Pro, including previous Lite references",async()=>{
   const a=app(),b=app("pro"),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");await tap(a,f);await tap(a,f);
@@ -186,17 +200,17 @@ test("reference formats travel between Lite and Pro, including previous Lite ref
   b.run("ref.format='ringbench-lite-reference';ref.version=1");assert.equal(b.run("validReference(ref)"),true);
   b.run("ref.strikes[0].peaks=[null]");assert.equal(b.run("validReference(ref)"),false);
 });
-test("Pro three-tap references are valid for Lite; matching does not need ideal mode labels",async()=>{
+test("Pro three-tap references are valid for Lite",async()=>{
   const a=app("pro"),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");await tap(a,f);await tap(a,f);await tap(a,f);
   const ref=a.run("referenceFromReading(ringBench.getState().reading,'Independent provenance')");
   const b=app();b.context.ref=JSON.parse(JSON.stringify(ref));assert.equal(b.run("validReference(ref)"),true);
-  assert.equal(b.run("empiricalMatches({f0:1000,peaks:[{f:2710}]},[2.7,2.72]).length"),1);
 });
-test("large deviation from theory is not declared counterfeit and taps that disagree are limited",async()=>{
-  const a=app(),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");await tap(a,f*.9);await tap(a,f*.9);
-  assert.equal(a.run("evaluateReading(ringBench.getState().reading,ringBench.current(),null).state"),"theory");
-  a.run("ringBench.newSession({kind:'file'})");await tap(a,f);await tap(a,f*1.03);
-  assert.equal(a.run("evaluateReading(ringBench.getState().reading,ringBench.current(),null).state"),"unstable");
+test("Lite gives a firm NO PASS below or above the expected range and when taps disagree",async()=>{
+  const a=app(),f=a.run("P(ringBench.current()).f[0]");
+  for(const [taps,why] of [[[f*.8,f*.8],/below the expected range/],[[f*1.35,f*1.35],/above the expected range/],[[f,f*1.03],/did not produce the same pitch/]]){
+    a.run("ringBench.newSession({kind:'file'})");for(const t of taps)await tap(a,t);
+    assert.equal(a.e.resultTitle.textContent,"NO PASS");assert.match(a.e.resultSummary.textContent,why);
+  }
 });
 test("stale analysis cannot replace the reading after a coin change",async()=>{
   const a=app();a.run("ringBench.newSession({kind:'file'});globalThis.release=null;analyseInner=()=>new Promise(r=>release=r)");
@@ -214,6 +228,44 @@ test("Pro records multiple modes and renders a joint material fit through the sh
   assert.match(a.e.materialFit.textContent,/compatible with 3 of 3/);
   assert.equal(a.e.fitRows.children.length,3);
   assert.match(a.e.geometryUncertainty.textContent,/sampled shapes/);
+  assert.equal(a.e.resultTitle.textContent,"Model consistent");assert.equal(a.e.resultTitleDesktop.textContent,"Model consistent");
+});
+test("Pro gives no indication of direction until all three taps are recorded, even when a reading is kept early",async()=>{
+  const a=app("pro");a.run("ringBench.newSession({kind:'file'})");
+  const frequencies=a.run("geometryFamily(ringBench.current()).candidates[4].f.slice(0,3)");
+  for(let i=0;i<2;i++){a.context.x=synth(a,{freqs:frequencies,amps:[.12,.08,.06]});assert.equal(await a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)"),true);}
+  const cell=(table,label)=>a.e[table].children.find(r=>r.children[0].textContent===label).children[1].textContent;
+  for(const when of ["after two taps","after keeping two taps"]){
+    assert.equal(a.e.resultTitle.textContent,"Test incomplete",when);assert.equal(a.e.resultTitleDesktop.textContent,"Test incomplete",when);
+    assert.doesNotMatch(a.e.resultSummary.textContent,/band|consistent|fit|pass/i,when);
+    assert.match(a.e.materialFit.textContent,/Record all 3 taps/,when);
+    assert.equal(cell("evidenceRows","Lowest recurring family"),"Shown when all 3 taps are recorded",when);
+    assert.equal(cell("ringEvidenceRows","Theory"),"Shown when all 3 taps are recorded",when);
+    a.run("ringBench.finish()");
+  }
+});
+test("the spectrum marker and the headline report the same lowest resonance",async()=>{
+  const a=app("pro");a.run("ringBench.newSession({kind:'file'})");
+  const band=a.run("(({low,high})=>({low,high}))(geometryFamily(ringBench.current()))"),low=(band.low+band.high)/2;
+  // A quiet in-band tone under a loud unexplained upper tone.
+  for(let i=0;i<3;i++){a.context.x=synth(a,{freqs:[low,low*1.41],amps:[.03,.15]});await a.run("ringBench.accept(x,48000,ringBench.getState().session.id,{kind:'file'},2880)");}
+  const labels=[];a.e.spectrum.clientWidth=600;
+  a.e.spectrum.getContext=()=>new Proxy({measureText:()=>({width:60}),fillText:text=>labels.push(text)},{get:(o,k)=>k in o?o[k]:()=>{},set:()=>true});
+  a.context.requestAnimationFrame=f=>f();a.run("ringBench.render()");
+  const marker=labels.find(t=>/^Measured · /.test(t));
+  assert.ok(marker,"measured marker drawn");assert.equal(Number(marker.replace(/\D/g,"")),Number(a.e.frequency.textContent));
+  assert.ok(Math.abs(Number(a.e.frequency.textContent)-low)<3);
+});
+test("saved references survive catalogue changes: split entries are kept, a corrected preset migrates",async()=>{
+  const a=app(),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");await tap(a,f);await tap(a,f);
+  const base=a.run("JSON.stringify(referenceFromReading(ringBench.getState().reading,'Independent instrument test'))");
+  const ref=(coin,alloy)=>{const r=JSON.parse(base);r.settings.coin=coin;r.settings.alloy=alloy;return r;};
+  const saved={"2 Dinara 1875–1915 · KM#26|ag835":ref("2 Dinara 1875–1915 · KM#26","ag835"),"Krugerrand 1 oz|au9167":ref("Krugerrand 1 oz","au9167"),"1 Dukat 1931–34 · KM#12|au9661":ref("1 Dukat 1931–34 · KM#12","au9661")};
+  const b=app("lite",false,{"ringbench.references.v2":JSON.stringify(saved)}),stored=JSON.parse(b.run("localStorage.getItem(REFERENCE_KEY)"));
+  assert.deepEqual(stored["2 Dinara 1875–1915 · KM#26|ag835"],saved["2 Dinara 1875–1915 · KM#26|ag835"]);
+  assert.deepEqual(stored["1 Dukat 1931–34 · KM#12|au9661"],saved["1 Dukat 1931–34 · KM#12|au9661"]);
+  assert.equal(stored["Krugerrand 1 oz|au917cu"].settings.alloy,"au917cu");assert.equal(stored["Krugerrand 1 oz|au917cu"].migratedFrom.alloy,"au9167");
+  assert.match(b.e.storageStatus.textContent,/2 saved record\(s\) belong to catalogue entries that were split or changed/);
 });
 test("verified specimen controls preserve distinct coins and refuse to count a recording twice",async()=>{
   const a=app(),f=a.run("P(ringBench.current()).f[0]");a.run("ringBench.newSession({kind:'file'})");await tap(a,f);await tap(a,f);
