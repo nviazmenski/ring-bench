@@ -1,7 +1,12 @@
 "use strict";
 // Experimental Kirchhoff–Love Rayleigh–Ritz model; derivation and limits in MODEL.md.
 const GEOMETRY_MODEL="stepped-rim-ritz-v1";
-const FAMILY_DEFAULTS=Object.freeze({widthMax:.16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,edgePct:2,fitPct:3});
+// Joint-fit tolerance: 3% for the thin-plate model, whose own (3,0)/(2,0) bias is about 2% at h/a ≈ 0.12;
+// 1% for the 3D solid model (genuine coins fit within 0.3%). MODEL.md, "Two-mode rule".
+const FAMILY_DEFAULTS=Object.freeze({widthMax:.16,ratioMax:1.75,ePct:5,rhoPct:1,massPct:1,diaPct:.5,edgePct:2,fitPct:3,solidFitPct:1});
+// Pro's joint fit needs the lowest repeatable resonance and one more distinct mode. A third mode is used when
+// recorded, but the (4,0) of most coins lies near or above a phone's usable bandwidth.
+const PRO_MIN_MODES=2;
 const rimEigenCache=new Map(),familyCache=new Map(),fitCache=new WeakMap();
 // Cyclic Jacobi: sweep every off-diagonal pair instead of searching for the largest.
 // Same rotations and stopping rule as the earlier largest-pivot version, about four
@@ -53,6 +58,7 @@ function rimEigenvalues(nu,width,ratio,terms=6){
   if(rimEigenCache.size>20000)rimEigenCache.clear();rimEigenCache.set(key,result);return result;
 }
 function familyOptions(c){return {...FAMILY_DEFAULTS,...c.family};}
+function fitTolerance(family){return (family.source==="solid"?family.options.solidFitPct:family.options.fitPct)/100;}
 // ───────── experimental 3D solid family (Pro) ─────────
 // Plate-equivalent λ² from pro/solid-tables.js (Pro only), interpolated in volume-equivalent thickness/radius,
 // rim/volume-equivalent thickness and ν by solidLookup in pro/solid.js. Each table sample is one admissible
@@ -126,8 +132,8 @@ function geometryFamily(c){
 }
 // The solid model predicts the axisymmetric frequency; a split pair (relief, rolling texture) straddles it.
 // To first order the split moves ω² symmetrically, so each family is scored at its RMS frequency.
-function familyObservations(reading,harmonic=false){
-  return modalFamilies(reading).filter(f=>(f.harmonicOf!==undefined)===harmonic).map(f=>({f:Math.sqrt(f.frequencies.reduce((s,x)=>s+x*x,0)/f.frequencies.length),familyIndex:f.index,
+function familyObservations(reading,c,harmonic=false){
+  return modalFamilies(reading,c).filter(f=>(f.harmonicOf!==undefined)===harmonic).map(f=>({f:Math.sqrt(f.frequencies.reduce((s,x)=>s+x*x,0)/f.frequencies.length),familyIndex:f.index,
     ...(harmonic?{parentIndex:f.harmonicOf,harmonicCandidate:true}:{})}));
 }
 function bandPosition(f,band){
@@ -155,12 +161,20 @@ function recurringPeaks(reading){
   return out;
 }
 const MODE_SPLIT_CLUSTER_PCT=.03;
+// Solid model: the lowest recurring family groups tones up to 6% apart. Relief splits the (2,0) pair by up to
+// about 4% on real coins (1-rouble pieces), and the next mode, (0,1), sits at least 1.6× higher, so no other mode
+// can fall this close. Upper families keep 3%: (1,1) and (4,0) can lie within a few percent of each other. The rule
+// depends on the reading and the model choice only, so the coin, its fakes and other alloys group tones alike and
+// share family indices.
+const SOLID_LOWEST_SPLIT_PCT=.06;
 const MODE_ENVELOPE_GUARD_PCT=.01;
 const HARMONIC_TOLERANCE_PCT=.008;
-function modalFamilies(reading,splitPct=MODE_SPLIT_CLUSTER_PCT){
+function modalFamilies(reading,c){
   const tracks=recurringPeaks(reading).slice().sort((a,b)=>a.f-b.f),families=[];
+  const wide=!!c?.plateModel&&c.plateModel!=="plate";
   for(const track of tracks){
     const last=families.at(-1),centre=last?median(last.tracks.map(t=>t.f)):0;
+    const splitPct=wide&&families.length===1?SOLID_LOWEST_SPLIT_PCT:MODE_SPLIT_CLUSTER_PCT;
     if(!last||track.f/centre-1>splitPct)families.push({tracks:[track]});else last.tracks.push(track);
   }
   const result=families.map((family,index)=>{
@@ -178,15 +192,15 @@ function modalFamilies(reading,splitPct=MODE_SPLIT_CLUSTER_PCT){
   }
   return result;
 }
-function scoringFamilies(reading){return modalFamilies(reading).filter(f=>f.harmonicOf===undefined);}
-function scoringTracks(reading){return scoringFamilies(reading).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index})));}
+function scoringFamilies(reading,c){return modalFamilies(reading,c).filter(f=>f.harmonicOf===undefined);}
+function scoringTracks(reading,c){return scoringFamilies(reading,c).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index})));}
 // A plate mode can sit near a whole-number multiple of a lower tone by coincidence;
 // (1,1) is about 4.01x (2,0) on a flat silver plate. Such tones stay out of scoring,
 // but the joint fit may use one above its parent when no fit exists without it.
-function harmonicCandidateTracks(reading){return modalFamilies(reading).filter(f=>f.harmonicOf!==undefined).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index,parentIndex:f.harmonicOf,harmonicCandidate:true})));}
+function harmonicCandidateTracks(reading,c){return modalFamilies(reading,c).filter(f=>f.harmonicOf!==undefined).flatMap(f=>f.tracks.map(t=>({...t,familyIndex:f.index,parentIndex:f.harmonicOf,harmonicCandidate:true})));}
 function inFamily(f,family){return !!family&&Number.isFinite(f)&&f>=Math.min(...family.frequencies)*(1-1e-9)&&f<=Math.max(...family.frequencies)*(1+1e-9);}
 function plateRatioEvidence(reading,c){
-  const family=geometryFamily(c),families=scoringFamilies(reading),pairs=[];
+  const family=geometryFamily(c),families=scoringFamilies(reading,c),pairs=[];
   if(!family.valid)return pairs;
   for(let a=0;a<families.length;a++)for(let b=a+1;b<families.length;b++){
     const observed=families[b].centre/families[a].centre,candidates=[];
@@ -194,7 +208,7 @@ function plateRatioEvidence(reading,c){
       const modes=g.f.map((f,mode)=>({f,mode})).filter(x=>family.scored[x.mode]&&x.f*family.lowScale<=reading.usableHz).sort((x,y)=>x.f-y.f);
       for(let i=0;i<modes.length;i++)for(let j=i+1;j<modes.length;j++){
         const ratio=modes[j].f/modes[i].f,ratioError=Math.abs(observed/ratio-1),scale=Math.sqrt(families[a].centre*families[b].centre/(modes[i].f*modes[j].f));
-        const absoluteErrors=[Math.abs(families[a].centre/(modes[i].f*scale)-1),Math.abs(families[b].centre/(modes[j].f*scale)-1)],tol=family.options.fitPct/100+2*g.numericalError;
+        const absoluteErrors=[Math.abs(families[a].centre/(modes[i].f*scale)-1),Math.abs(families[b].centre/(modes[j].f*scale)-1)],tol=fitTolerance(family)+2*g.numericalError;
         candidates.push({modes:[modes[i].mode,modes[j].mode],modelRatio:ratio,ratioError,scale,withinScale:scale>=family.lowScale&&scale<=family.highScale,joint:scale>=family.lowScale&&scale<=family.highScale&&ratioError<=tol&&Math.max(...absoluteErrors)<=tol,geometry:g});
       }
     }
@@ -215,7 +229,7 @@ function modeEnvelopes(c){
   }));
 }
 function modalEnvelopeEvidence(reading,c){
-  const envelopes=modeEnvelopes(c),families=modalFamilies(reading);
+  const envelopes=modeEnvelopes(c),families=modalFamilies(reading,c);
   const assignments=families.map(family=>{
     const possible=envelopes.filter(e=>family.centre>=e.low*(1-MODE_ENVELOPE_GUARD_PCT)&&family.centre<=e.high*(1+MODE_ENVELOPE_GUARD_PCT));
     const nearest=envelopes.map(e=>({mode:e.mode,distance:family.centre<e.low?e.low/family.centre-1:family.centre>e.high?family.centre/e.high-1:0,envelope:e})).sort((a,b)=>a.distance-b.distance)[0]||null;
@@ -224,7 +238,7 @@ function modalEnvelopeEvidence(reading,c){
   return {envelopes,assignments,outside:assignments.filter(a=>a.outside),guard:MODE_ENVELOPE_GUARD_PCT};
 }
 function acousticFingerprint(reading,c){
-  const taps=reading?.strikes?.length||0,tracks=recurringPeaks(reading),families=modalFamilies(reading),ratios=c?plateRatioEvidence(reading,c):[],envelope=c?modalEnvelopeEvidence(reading,c):null,decay=tracks.filter(t=>Number.isFinite(t.persistenceDropDb)).map(t=>({f:t.f,earlyLateDb:t.persistenceDropDb}));
+  const taps=reading?.strikes?.length||0,tracks=recurringPeaks(reading),families=modalFamilies(reading,c),ratios=c?plateRatioEvidence(reading,c):[],envelope=c?modalEnvelopeEvidence(reading,c):null,decay=tracks.filter(t=>Number.isFinite(t.persistenceDropDb)).map(t=>({f:t.f,earlyLateDb:t.persistenceDropDb}));
   return {version:1,taps,tracks,families,ratios,envelope,decay,repeatable:taps>=2&&tracks.length>0&&tracks.every(t=>t.support===taps&&t.spread<=.01)};
 }
 function primaryResonanceEvidence(fingerprint){
@@ -243,9 +257,9 @@ function primaryResonanceEvidence(fingerprint){
 function fitGeometryFamily(reading,c){
   const cacheKey=JSON.stringify(c),cache=fitCache.get(reading)||new Map();if(cache.has(cacheKey))return cache.get(cacheKey);
   const family=geometryFamily(c),solid=family.source==="solid",results=[];
-  const observed=(solid?familyObservations(reading):scoringTracks(reading)).filter(p=>p.f<=reading.usableHz),harmonics=(solid?familyObservations(reading,true):harmonicCandidateTracks(reading)).filter(p=>p.f<=reading.usableHz);
+  const observed=(solid?familyObservations(reading,c):scoringTracks(reading,c)).filter(p=>p.f<=reading.usableHz),harmonics=(solid?familyObservations(reading,c,true):harmonicCandidateTracks(reading,c)).filter(p=>p.f<=reading.usableHz);
   if(observed.length<2||reading.strikes.length<2||!family.valid)return {family,observed,harmonicCount:harmonics.length,results,best:null,supported:[],identityFits:[],matchedModeCount:0,state:"insufficient"};
-  const tolerance=family.options.fitPct/100;
+  const tolerance=fitTolerance(family);
   for(const g of family.candidates){
     const modes=g.f.map((f,i)=>({f,i})).filter(m=>family.scored[m.i]&&m.f*family.lowScale<=reading.usableHz).sort((a,b)=>a.f-b.f);
     // Try every recurring tone as the lowest observed member of a mode pattern.
@@ -278,31 +292,36 @@ function fitGeometryFamily(reading,c){
     }
   }
   results.sort((a,b)=>Number(b.supported)-Number(a.supported)||b.matches.length-a.matches.length||a.residual-b.residual);
-  // Fits that use a harmonic candidate count only when no three-mode fit exists without one.
-  const strictFit=results.some(r=>!r.harmonicAssisted&&r.supported&&r.matches.length>=3);
-  const kept=results.filter(r=>!r.harmonicAssisted||!strictFit&&r.supported&&r.matches.length>=3);
-  const best=kept[0]||null,supported=kept.filter(r=>r.supported&&r.matches.length>=3);
+  // Fits that use a harmonic candidate count only when no fit reaching PRO_MIN_MODES exists without one, and a
+  // harmonic candidate never counts toward that minimum: a tone and its own overtone cannot confirm each other.
+  const independent=r=>r.matches.filter(m=>!m.harmonicCandidate).length;
+  const strictFit=results.some(r=>!r.harmonicAssisted&&r.supported&&r.matches.length>=PRO_MIN_MODES);
+  const kept=results.filter(r=>!r.harmonicAssisted||!strictFit&&r.supported);
+  const best=kept[0]||null,supported=kept.filter(r=>r.supported&&independent(r)>=PRO_MIN_MODES);
   const identityFits=kept.filter(r=>r.supported),matchedModeCount=Math.max(0,...identityFits.map(r=>r.matches.length));
-  const result={family,observed,harmonicCount:harmonics.length,results:kept.slice(0,30),identityFits,best,supported,matchedModeCount,harmonicAssisted:supported.length>0&&!strictFit,state:supported.length?"compatible":observed.length>=3?"unresolved":"insufficient"};
+  const result={family,observed,harmonicCount:harmonics.length,results:kept.slice(0,30),identityFits,best,supported,matchedModeCount,harmonicAssisted:supported.length>0&&!strictFit,tolerance,state:supported.length?"compatible":observed.length>=PRO_MIN_MODES?"unresolved":"insufficient"};
   cache.set(cacheKey,result);fitCache.set(reading,cache);return result;
 }
 
 function estimateFundamental(r,c){
-  const observed=scoringTracks(r).filter(p=>p.f<=r.usableHz),fit=fitGeometryFamily(r,c);
+  const observed=scoringTracks(r,c).filter(p=>p.f<=r.usableHz),fit=fitGeometryFamily(r,c);
   const fits=fit.identityFits||[],maxCount=Math.max(0,...fits.map(f=>f.matches.length));
   // Use all surviving maximal-coverage interpretations, not just the best residual.
   const contenders=(fit.supported.length?fit.supported:fits).filter(f=>f.matches.length===maxCount);
-  const candidates=contenders.filter(f=>f.fundamentalObserved).map(f=>f.matches[0].measured);
+  const roots=contenders.filter(f=>f.fundamentalObserved).map(f=>f.matches[0]),candidates=roots.map(m=>m.measured);
   let f0=null,ambiguous=false,basis="",reason="";
   if(contenders.length){
-    const missing=contenders.some(f=>!f.fundamentalObserved);
-    ambiguous=missing||candidates.some(f=>Math.abs(f/candidates[0]-1)>.01);
-    if(!ambiguous&&candidates.length){f0=median(candidates);basis="joint-pattern";reason="Lowest observed mode supported by the recurring peak pattern.";}
+    const missing=contenders.some(f=>!f.fundamentalObserved),spread=candidates.some(f=>Math.abs(f/candidates[0]-1)>.01);
+    // The thin-plate fit anchors on single tracks, so both tones of one split family can root a fit.
+    // They are one mode identity, not competing fundamentals; the lower tone is taken as the lowest mode.
+    const oneFamily=new Set(roots.map(m=>m.familyIndex)).size===1;
+    ambiguous=missing||spread&&!oneFamily;
+    if(!ambiguous&&candidates.length){f0=spread?Math.min(...candidates):median(candidates);basis="joint-pattern";reason="Lowest observed mode supported by the recurring peak pattern.";}
     else reason=missing?"The peak pattern permits an unobserved lower fundamental or competing mode identities.":"Several recurring peaks remain plausible fundamentals.";
   }else if(observed.length===1){f0=observed[0].f;basis="single-tone";reason="Only one credible tone; fundamental identity is provisional.";}
   else{ambiguous=true;reason=observed.length?"Recurring peaks do not establish a unique fundamental.":"No common tone was retained across the taps.";}
   // A split family scored at its centroid (solid model) is tracked per tap at that tap's centroid.
-  const split=f0===null||fit.family.source!=="solid"?null:modalFamilies(r).find(f=>f.tracks.length>1&&inFamily(f0,f)&&!f.frequencies.some(x=>Math.abs(x/f0-1)<=1e-9));
+  const split=f0===null||fit.family.source!=="solid"?null:modalFamilies(r,c).find(f=>f.tracks.length>1&&inFamily(f0,f)&&!f.frequencies.some(x=>Math.abs(x/f0-1)<=1e-9));
   const taps=f0===null?[]:split?r.strikes.map((s,i)=>{const fs=split.tracks.map(t=>t.observations.find(o=>o.tap===i)?.f);return fs.every(Number.isFinite)?Math.sqrt(fs.reduce((a,x)=>a+x*x,0)/fs.length):undefined;})
     :r.strikes.map(s=>s.peaks.filter(p=>Math.abs(p.f/f0-1)<=.01).sort((a,b)=>Math.abs(a.f-f0)-Math.abs(b.f-f0))[0]?.f);
   const complete=taps.length===r.strikes.length&&taps.every(Number.isFinite);
@@ -342,13 +361,14 @@ function screenReading(r,c,requirePattern=false,requiredTaps=requirePattern?3:2)
   }else if(!fingerprint.repeatable||!primary.family)reason="No stable resonance was retained across all taps. Repeat with the same support and strike position.";
   else if(fieldPosition==="compatible"&&primary.insideLowest){
     const extra=primary.secondaryOutside.map(a=>Math.round(a.family.centre)+" Hz").join(", ");
-    // A three-mode fit that starts above the lowest resonance leaves that resonance unexplained.
+    // A joint fit that starts above the lowest resonance leaves that resonance unexplained.
     const fitCoversPrimary=inFamily(estimate.f0,primary.family);
     if(fit.state==="compatible"&&!estimate.ambiguous&&fitCoversPrimary&&!primary.secondaryOutside.length){
-      state="compatible";diagnostic="model-consistent";reason="The lowest repeatable resonance ("+hz+" Hz) is in band and at least three distinct modes, including it, fit the current geometry and material assumptions. "+(fit.harmonicAssisted?"One fitted tone is also close to a whole-number multiple of a lower tone; it was counted as a plate mode because it fits the pattern. ":"")+"Check mass, diameter and metal independently.";
+      state="compatible";diagnostic="model-consistent";const modes=Math.max(...fit.supported.map(x=>x.matches.length));
+      reason="The lowest repeatable resonance ("+hz+" Hz) is in band and "+(modes===2?"two":modes===3?"three":modes)+" distinct modes, including it, fit one shape within "+Math.round(fit.tolerance*100)+"% (two are required). "+(fit.harmonicAssisted?"One fitted tone is also close to a whole-number multiple of a lower tone; it was counted as a plate mode because it fits the pattern. ":"")+"Check mass, diameter and metal independently.";
     }else{
       state="evidence";diagnostic=primary.secondaryOutside.length?"primary-consistent-secondary-unresolved":"primary-band-incomplete";
-      const fitNote=fit.state!=="compatible"?"The best joint fit explains "+matched+" distinct mode(s); three are required for a full Pro model fit. ":estimate.ambiguous||estimate.f0===null?"Several modes fit, but which one is the lowest mode remains ambiguous. ":!fitCoversPrimary?"The three-mode fit starts at "+Math.round(estimate.f0)+" Hz and does not explain the lowest resonance. ":"";
+      const fitNote=fit.state!=="compatible"?(matched>=PRO_MIN_MODES?"The best joint fit relies on a tone near a whole-number multiple of a lower tone; two independent modes are required for a Pro model fit. ":"The best joint fit explains "+matched+" distinct mode(s); two are required for a Pro model fit. "):estimate.ambiguous||estimate.f0===null?"Several modes fit, but which one is the lowest mode remains ambiguous. ":!fitCoversPrimary?"The best joint fit starts at "+Math.round(estimate.f0)+" Hz and does not explain the lowest resonance. ":"";
       reason="The lowest repeatable resonance ("+hz+" Hz) falls within the provisional model band. "+fitNote+(extra?"Higher recurring tones at "+extra+" are not explained by this model. ":"")+"Confirm mass and diameter and use an independent metal test, such as a Sigma, before relying on the coin.";
     }
   }else if(fieldPosition==="anomalous"&&primary.family.centre>band.high){

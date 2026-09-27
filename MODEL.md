@@ -1,8 +1,8 @@
 # RingBench geometry family, revision 3
 
-## Verdict rules — Pro 4.8 / Lite 3.5 (current)
+## Verdict rules — Pro 4.13 / Lite 3.10 (current)
 
-This section is the current verdict logic; Pro 4.9 / Lite 3.6, Pro 4.10 / Lite 3.7 and Pro 4.11 / Lite 3.8 left it unchanged. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds, 3% fit tolerance and band construction are unchanged. Pro 4.11 adds an optional experimental model for the Morgan dollar ("3D solid model"); the rules here apply to it too, with the changes that section lists.
+This section is the current verdict logic. Pro 4.13 lowers Pro's joint-fit requirement from three modes to two and sets the fit tolerance per model; "Two-mode rule" below gives the evidence. Lite's verdict is unchanged since Lite 3.5. Where any later section disagrees, including "Bands and fitting" and "Reference specimens", this section applies. The forward model, detector thresholds and band construction are unchanged. Pro 4.11 added an optional experimental model ("3D solid model"); the rules here apply to it too, with the changes that section lists.
 
 **Tap count.** No result is given until the edition's full tap count is recorded: two for Lite, three for Pro. Before that, only measurements are shown.
 
@@ -10,13 +10,70 @@ This section is the current verdict logic; Pro 4.9 / Lite 3.6, Pro 4.10 / Lite 3
 
 **Pro, above the band.** A missed lowest mode stays open ("Lower mode not established") only when a supported identity fit anchors the lowest recurring family on a higher mode with the lowest mode unobserved, and that family lies inside a modeled envelope. Otherwise the result is outside the model. A lone tone above the band therefore cannot keep that possibility open.
 
-**Pro, Model consistent.** In addition to the three-mode joint fit, an unambiguous lowest-mode estimate and no unexplained secondary family, the fitted lowest mode must lie in the lowest repeatable family.
+**Pro, Model consistent.** Pro needs a joint fit of at least two independent modes on one shape, one common scale inside the nuisance bounds, and every ratio and absolute frequency within the fit tolerance: 3% for the thin-plate model, 1% for the 3D solid model. It also needs an unambiguous lowest-mode estimate and no unexplained secondary family, and the fitted lowest mode must lie in the lowest repeatable family. A third mode is fitted and reported when recorded but is not required. When the thin-plate fit can root on either tone of one split family, that is one mode identity, not an ambiguity; the lower tone is taken as the lowest mode.
 
-**Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits count only when no three-mode fit exists without one. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
+**Harmonic candidates.** A family within 0.8% of a 2×–5× multiple of a lower family stays out of scoring and envelope exclusion. The joint fit may use it as an upper member alongside its parent family, and such fits are kept only when no two-mode fit exists without one. It never counts toward the two independent modes: a tone and its own overtone cannot confirm each other. Plate-mode ratios can fall near integers by coincidence. For a uniform plate at ν = 0.37, (1,1)/(2,0) ≈ 4.010; the same happens for some stepped shapes of silver and gold. The verdict states when a fit relied on such a tone.
 
 **Tracked modes.** The solver computes circumferential orders n = 0–4 and tracks (2,0), (0,1), (3,0), (1,1), (4,0) and (2,1). These are not the six lowest modes. On a uniform plate, (5,0) has λ² ≈ 31.6–33.6 for ν = 0.29–0.42, below (2,1) at ≈ 35.2. A real (5,0) peak is therefore reported as outside every modeled mode. Adding it is a separate model revision.
 
-## 3D solid model — Pro 4.11–4.12 (experimental)
+## Two-mode rule — Pro 4.13 (current)
+
+Until 4.12, Pro needed three modes for **Model consistent**. For most coins the third scored mode is (4,0), at 3.97–4.02× the (2,0) on the coins recorded so far, and a phone rarely records it.
+- **Bandwidth.** For 40 of the 105 catalogue coins the (4,0) lies above 20 kHz for every sampled cross-section of the generic or Morgan family, and for 25 more it does for some. A 48 kHz recording ends at 24 kHz: a 50-kopek piece's (4,0), about 25.8 kHz, can never be recorded. A 1-rouble piece's, about 21 kHz, sits at the edge of a phone microphone.
+- **Level.** Where it can be recorded it is weak and brief. On M06 the (4,0) at 17.3 kHz is 15–39 dB below the loudest tone in the first 100 ms and decays with τ ≈ 70–110 ms. In a first battery, the (4,0) of three Morgans is visible in the spectra at 17.3–17.6 kHz, yet none of them received a three-mode result.
+
+**What the third mode added.** The (3,0)/(2,0) and (4,0)/(2,0) ratios both follow mostly from one shape parameter, the die basin for the Morgan, so the second ratio is nearly redundant.
+
+*Band narrowing* (solid model, the shapes whose ratios agree within 1% of the measured ones):
+
+| | No ratio | (3,0) ratio | Plus (4,0) ratio |
+|---|---|---|---|
+| M06, rim 2.40 mm | ±10.1% | ±8.8% | ±8.7% |
+| Morgan C, rim prior | ±15.7% | ±10.5% | ±10.5% |
+
+*Fakes caught.* The simulation takes every third sampled cross-section of each modelled construction ("Counterfeit constructions") at five scales across its material and dimension uncertainty. It uses clean tones at the model's (2,0), (3,0) and (4,0). It counts only the cases whose lowest mode lands inside the genuine band; pitch alone rules out the rest.
+
+| In-band fake cases caught | Morgan (M06 inputs) | 1 Rouble (catalogue) |
+|---|---|---|
+| Three modes, 3% (Pro 4.12) | 0 of 204 | 22 of 723 |
+| Two modes, 1% (Pro 4.13, solid) | 3 of 204 | 36 of 723 |
+| Three modes, 1% | 3 of 204 | 55 of 723 (needs the (4,0) at ≈ 21 kHz) |
+
+- The in-band cases are underfine alloy, lead–tin castings and thick molybdenum shells. Mode ratios barely depend on the material, so these ring in nearly genuine ratios. The first two are caught, if at all, by a separate check: fineness by an independent metal test, lead–tin by its short, dull ring.
+- On the thin-plate model at 3%, two and three modes catch the same in-band cases: 0 of 10 for the Morgan, 0 of 41 for the rouble.
+- The simulation assumes fakes share the genuine coin's range of cross-sections.
+
+**Tolerance.**
+- *Solid model: 1%.* Seven genuine coins fit their shapes with ratio errors of at most 0.30%, and M06's (3,0)/(2,0) repeats across taps at 2.3080, 2.3098 and 2.3095.
+- *Thin plate: 3%.* Thin-plate theory overpredicts (3,0) by about 4.4% and (2,0) by 2.1% at h/a ≈ 0.12, so its own ratio bias is about 2%. Genuine coins sit 1–2% below its (3,0)/(2,0) range.
+
+**Harmonic guard.** With two modes, a tone and its own overtone could confirm each other. A harmonic candidate (within 0.8% of 2–5× a lower tone) therefore never counts toward the two independent modes. M06's (4,0) at 4.02× the (2,0), and those of two of the three Morgans below, fall inside that tolerance and are not counted.
+
+**Split lowest pair (solid model).** The lowest recurring family groups tones up to 6% apart, instead of 3%. The rule depends only on the reading and the model choice, so the coin, its fakes and other alloys group tones alike.
+- Two of three 1-rouble pieces split their (2,0) by 3.9–4.1%. At 3% the fit anchored on the lower tone, and so on shapes for a (3,0)/(2,0) of 2.33 rather than the centroid's 2.29.
+- (0,1), the next mode above (2,0), lies at least 1.6× higher, so nothing else falls within 6% of the pair.
+- Upper families keep 3%, since (1,1) and (4,0) can lie within a few percent of each other. A recurring non-modal tone below the (2,0), such as a holder resonance, would take the lowest place; the (2,0) pair then keeps 3%, as before 4.13.
+- The thin-plate model and Lite keep 3%.
+
+**First battery** (Pocket Pinger, centre grip). Tones are read from screenshots, about ±15 Hz; the owner reports each coin as genuine: the Morgans and two roubles by mass and dimensions, the stained rouble and the 50 kopek also by a Sigma. Under 4.13's solid model all seven are **Model consistent**; `tests/solid.test.cjs` keeps these readings as a regression.
+
+| Coin | (2,0) pair, Hz | (3,0) | (4,0) | (3,0)/(2,0) |
+|---|---|---|---|---|
+| Morgan A | 4369 / 4480 | 10132 | 17550 | 2.290 |
+| Morgan B (M06) | 4252 / 4376 | 9961 | 17330 | 2.309 |
+| Morgan C | 4343 / 4389 | 10047 | 17420 | 2.301 |
+| 1 Rouble A | 5213 / 5420 | 12150 | — | 2.285 |
+| 1 Rouble B | 5190 / 5285 | 12090 | — | 2.308 |
+| 1 Rouble C | 5136 / 5345 | 12030 | — | 2.295 |
+| 50 Kopeks | 6380 / 6560 | 14890 | — | 2.301 |
+
+**Limits of the rule.**
+- All seven coins sit at the bottom of their family's (3,0)/(2,0) range: generic 2.284–2.53 with median 2.364, Morgan 2.293–2.425 with median 2.339. Morgan A lies just below the Morgan floor and passes within the 1% tolerance.
+- The generic and Morgan priors therefore assume too deep a basin, too tall a rim or too much relief, or the model is biased by about 2% on this ratio for every coin. A flat blank would tell the two apart.
+- Until the priors are re-centred on recorded genuine coins, the tolerance should not go below about 0.5%.
+- Two modes are weaker proof than three that the tones belong to the coin's own mode family. The verdict states how many modes fit, and the recurrence, lowest-tone and envelope rules still apply.
+
+## 3D solid model — Pro 4.11–4.13 (experimental)
 
 This section is current. It is opt-in, in Pro, for any catalogue coin: **Model → Plate model → 3D solid (experimental)**. The choice stays as you switch coins. The Morgan dollar uses its own cross-section family (4.11); every other coin uses the generic family (4.12). Lite and Pro's default thin-plate model are unchanged.
 
@@ -94,7 +151,7 @@ That is 20,440 cross-sections, 16,425 of them admissible, covering every catalog
 *Rim.* A measured rim gives three cross-sections per sample: the reading and ±0.03 mm. The prior gives its endpoints and the grid points between them.
 
 **Scoring, when this model is selected:**
-- **Split pairs.** The model is axisymmetric; relief and rolling texture split each (n,s) pair. To first order the split moves ω² symmetrically, so a family of close tracks (the existing 3% grouping) is scored at its RMS frequency. M06's (2,0) pair, 4246/4369 Hz (2.9% split), is scored at 4308 Hz. An orthotropic sheet splits only n = 1 and n = 2 at first order, which matches M06: its (3,0) and (4,0) are single.
+- **Split pairs.** The model is axisymmetric; relief and rolling texture split each (n,s) pair. To first order the split moves ω² symmetrically, so a family of close tracks is scored at its RMS frequency. Tracks group at 3%; since 4.13 the lowest recurring family groups them at up to 6% (see "Two-mode rule"). M06's (2,0) pair, 4246/4369 Hz (2.9% split), is scored at 4308 Hz. An orthotropic sheet splits only n = 1 and n = 2 at first order, which matches M06: its (3,0) and (4,0) are single.
 - **Centre support.** Under **Held during the test → At the centre**, the default, the (0,1) and (1,1) modes are not scored. Their envelopes extend 15% upward, so a support-shifted tone is still explained.
   - *Why.* A Pocket Pinger holds the coin between silicone tips at the centre of both faces. Those modes move there; n ≥ 2 modes have zero displacement and slope there.
   - *Modelled* (`research/solid/grip.py`, Morgan cross-section). Soft pads raise (0,1) by up to 5% and move n ≥ 2 by less than 0.001%.
@@ -107,7 +164,7 @@ That is 20,440 cross-sections, 16,425 of them admissible, covering every catalog
   - Found tones are marked in exports (`early: true`, strike `upperScan: "early-window-v1"`), and their levels are taken from the full-ring spectrum.
   - The standard detector is unchanged.
 - **Fakes.** Since 4.12 the construction screen and the analysis floor use the same solid model and cross-section family as the coin under test; only the material changes. A fake thicker than the tables (volume-equivalent thickness/radius above the grid) has no admissible cross-section, and neither does one thicker than the entered rim allows. Both are reported as caught by calipers, as before. In 4.11 the fakes stayed on the thin-plate model.
-- The 3% fit tolerance, the three-mode requirement, harmonic candidates, guards and verdict rules are unchanged.
+- Since 4.13 this model's fit tolerance is 1% and Pro needs two modes ("Two-mode rule"). Harmonic candidates, guards and the other verdict rules are unchanged.
 
 **Result on one specimen.** M06: 1881-S, VF, 25.81 g, 37.7 mm, rim 2.40 mm, Pocket Pinger, three taps (`tests/fixtures/morgan-m06`). Authenticity has not been verified independently. The mass is 0.92 g under the 26.73 g standard, well beyond mint tolerance and ordinary wear.
 
@@ -117,6 +174,8 @@ That is 20,440 cross-sections, 16,425 of them admissible, covering every catalog
 | Modes found | (2,0) pair, (3,0) | (2,0) pair, (3,0), (4,0) at 17.3 kHz |
 | Result | Primary frequency in band, 2 modes | Model consistent |
 | Fit residuals | — | (2,0) +0.08%, (3,0) −0.16%, (4,0) +0.08% |
+
+This table is Pro 4.11–4.12. Under the 4.13 two-mode rule both columns read Model consistent: (2,0) and (3,0) fit within 3% on the thin plate and within 1% on the solid model. The (4,0) at 4.02× the (2,0) is also within 0.8% of its fourth harmonic, so it is shown and predicted within 0.5% by several fitted shapes but no longer counted. The closest-fit summary therefore rests on one ratio and widens to 0.00–0.10 mm and 82–87 GPa.
 
 With the early scan but the thin-plate model, the three tones fit with 0.5–1% errors. Competing identities also fit within 3%, so the result stays "ambiguous". The solid model's fit is unambiguous even with all six modes scored.
 
@@ -143,8 +202,8 @@ With the rim measured, the spread across generic cross-sections is about 13% on 
 Meanwhile the physics correction alone (the 1.5–4% on the upper edge) could move to Lite without the wider priors.
 
 **Limits.**
-- One unverified specimen. Nothing here is calibrated on real coins, and no coin other than the Morgan has been recorded against it.
-- The 3% fit tolerance is wider than the family's own spread. For (3,0)/(2,0) that spread is 2.29–2.37 with a measured rim of 2.40 mm, and 2.29–2.42 under the rim prior. Upper modes add little discrimination until genuine specimens justify a tighter tolerance.
+- Few specimens. M06 has recordings; a first battery of seven coins (below) has screenshots only. Nothing here is calibrated.
+- Until 4.12 the 3% fit tolerance was wider than the family's own (3,0)/(2,0) spread (2.29–2.37 with a measured rim of 2.40 mm, 2.29–2.42 under the rim prior). Since 4.13 it is 1%. The priors are still off-centre for every coin recorded so far ("Two-mode rule").
 - Axisymmetric: split pairs are not predicted.
 - The faces are mirror-symmetric, whereas the obverse and reverse differ.
 - Reeding and rim rounding are not modelled.
