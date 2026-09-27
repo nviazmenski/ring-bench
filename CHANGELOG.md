@@ -2,6 +2,21 @@
 
 Newest first. Each section describes the release it names; behaviour in older sections may since have changed. Current behaviour is in [README.md](README.md) and [MODEL.md](MODEL.md). Git tags `lite-X.Y` and `pro-X.Y` mark each release.
 
+## Pro 4.13 / Lite 3.10 — two modes for a Pro model fit
+
+- **Two modes, not three.** **Model consistent** now needs the lowest repeatable resonance plus one more independent mode fitting one shape. A third mode is still fitted and reported when it is recorded. For most coins the third scored mode is (4,0), at about 4× the (2,0):
+  - for 40 of the 105 catalogue coins it lies above 20 kHz for every sampled shape, and for 25 more for some;
+  - where a phone can record it, it is weak and dies within about 0.1 s.
+- **Tighter ratio test.**
+  - The 3D solid model's fit tolerance goes from 3% to 1%. Seven genuine coins fit within 0.30%.
+  - The thin plate keeps 3%, since its own (3,0)/(2,0) bias is about 2%.
+  - In simulation the two-mode, 1% test catches more in-band fakes than the old three-mode, 3% test: Morgan 3 of 204 against 0; 1 Rouble 36 of 723 against 22. On the Morgan the third mode narrows the band by about 0.1 percentage point.
+- **Overtones never count.** A tone within 0.8% of 2–5× a lower tone no longer counts toward the two modes, so a tone and its own overtone cannot confirm each other. M06's (4,0), at 4.02× its (2,0), is shown but not counted; it still passes on (2,0) and (3,0).
+- **Wide splits (solid model).** In the lowest recurring family, tones up to 6% apart form one family, scored at its centroid. Two 1-rouble pieces split their (2,0) by about 4%, and the fit had anchored on the lower tone. Upper modes, the thin-plate model and Lite keep 3%.
+- **Split pairs on the thin plate.** When the thin-plate fit could root on either tone of one split family, the result read "ambiguous". The two tones are now one mode identity, and the lower tone is taken as the lowest mode.
+- **First battery.** Three Morgans (one of them M06), three 1-rouble pieces and a 50-kopek piece, read from screenshots, are all **Model consistent** in the solid model and are kept as a regression test. All seven sit at the low end of the model's (3,0)/(2,0) range, so the priors need re-centring on recorded genuine coins before the tolerance can go lower. MODEL.md, "Two-mode rule", has the evidence and limits.
+- **Lite's results are unchanged.** Its build moves only because shared files changed.
+
 ## Pro 4.12 / Lite 3.9 — the experimental 3D solid model for every coin
 
 - **Every catalogue coin, still opt-in, Pro only.** Model → Plate model → *3D solid (experimental)*. The choice now stays as you switch coins, for testing a batch. Lite and Pro's default thin-plate model are unchanged; Lite's build moves only because shared files changed.

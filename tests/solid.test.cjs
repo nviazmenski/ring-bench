@@ -85,7 +85,7 @@ test('sampled cross-sections of very different coins fit as model consistent und
     const res=run(`(()=>{const c=flat.find(x=>x.n.startsWith(${JSON.stringify(name)})),a=ALLOYS[c.a],s={name:c.n,key:c.a,mass:c.m,dia:c.d,rho:rhoOf(c.a),E:a.E,nu:a.nu,support:'centre',rimThickness:0,plateModel:c.solid||'generic-solid',family:{...FAMILY_DEFAULTS}};
       const f=geometryFamily(s),g=f.candidates[Math.floor(f.candidates.length/2)],x=.02,modes=[0,2,4].map(i=>g.f[i]).filter(v=>v<20000);
       const e=screenReading(readingOf([g.f[0]*Math.sqrt(1-x),g.f[0]*Math.sqrt(1+x),...modes.slice(1)]),s,true,3);return {d:e.diagnostic,reason:e.reason,n:modes.length};})()`);
-    if(res.n>=3)assert.equal(res.d,'model-consistent',name+': '+res.reason);
+    if(res.n>=2)assert.equal(res.d,'model-consistent',name+': '+res.reason);
   }
 });
 test('a sampled cross-section with a split lowest mode is model consistent; shifted upper modes are not',()=>{
@@ -103,6 +103,46 @@ test('a sampled cross-section with a split lowest mode is model consistent; shif
   assert.ok(withAxisymmetric.fit.best.matches.every(m=>m.mode!==1&&m.mode!==3));
 });
 
+test('two-mode fits: the solid model tests the (3,0)/(2,0) ratio at 1%; an overtone cannot stand in for a mode',()=>{
+  run(`globalThis.byRatio=geometryFamily(spec()).candidates.slice().sort((a,b)=>a.f[2]/a.f[0]-b.f[2]/b.f[0]);`);
+  const verdict=f=>run(`screenReading(readingOf(${JSON.stringify(f)}),spec(),true,3)`);
+  const lo=run('byRatio[0].f'),hi=run('byRatio.at(-1).f');
+  for(const g of [lo,hi])assert.equal(verdict([g[0],g[2]]).diagnostic,'model-consistent');
+  const fit=verdict([hi[0],hi[2]*1.005]);
+  assert.equal(fit.diagnostic,'model-consistent');assert.equal(fit.fit.tolerance,.01);
+  // 2% outside the family's ratio range: consistent under the old 3% tolerance, not under 1%.
+  for(const f of [[hi[0],hi[2]*1.02],[lo[0],lo[2]*.98]])assert.notEqual(verdict(f).diagnostic,'model-consistent',JSON.stringify(f));
+  assert.equal(run(`screenReading(readingOf(${JSON.stringify([hi[0],hi[2]*1.02])}),spec({family:{...FAMILY_DEFAULTS,solidFitPct:3}}),true,3).diagnostic`),'model-consistent');
+  // A lone (2,0) with a tone at exactly 4× it: that could be the strike's overtone rather than the (4,0).
+  assert.notEqual(verdict([lo[0],lo[0]*4]).diagnostic,'model-consistent');
+});
+test('solid model: the lowest pair groups up to 6% apart, identically for the coin and its fakes; upper tones keep 3%',()=>{
+  run(`globalThis.rouble=flat.find(c=>c.n.startsWith('1 Rouble 1886'));globalThis.rspec=(extra={})=>spec({name:rouble.n,key:rouble.a,mass:rouble.m,dia:rouble.d,rho:rhoOf(rouble.a),E:ALLOYS[rouble.a].E,nu:ALLOYS[rouble.a].nu,plateModel:'generic-solid',...extra});`);
+  // Rouble A of the first battery: (2,0) pair 3.9% apart, (3,0) at 12.15 kHz.
+  const r='readingOf([5213,5420,12150])';
+  assert.equal(run(`modalFamilies(${r},rspec()).length`),2);
+  assert.ok(Math.abs(run(`familyObservations(${r},rspec())[0].f`)-Math.sqrt((5213**2+5420**2)/2))<5);
+  // The thin-plate model and Lite keep the 3% grouping.
+  assert.equal(run(`modalFamilies(${r},rspec({plateModel:'plate'})).length`),3);
+  assert.equal(run(`modalFamilies(${r}).length`),3);
+  // Above the lowest family two tones 4% apart stay separate.
+  assert.equal(run(`modalFamilies(readingOf([5238,12090,12090*1.04]),rspec()).length`),3);
+  // Fakes and other alloys share the coin's family indices, which the construction screen relies on.
+  assert.ok(run(`constructionScreen(rspec()).rows.every(row=>JSON.stringify(modalFamilies(${r},row.spec).map(f=>f.frequencies))===JSON.stringify(modalFamilies(${r},rspec()).map(f=>f.frequencies)))`));
+});
+test('first battery (screenshot readings, about ±15 Hz): seven genuine coins are model consistent in the solid model',()=>{
+  // Pocket Pinger, centre grip. Extra peaks as read from the spectra, including sum tones of the split pair.
+  const coins=[['Morgan A','Morgan',[4369,4480,10132,17550],3],['Morgan B (M06)','Morgan',[4252,4376,9961,17330],2],['Morgan C','Morgan',[4343,4389,10047,17420],2],
+    ['Rouble A','1 Rouble 1886',[5213,5420,12150],2],['Rouble B','1 Rouble 1886',[5190,5285,10470,12090,12800,15650,17920],2],
+    ['Rouble C','1 Rouble 1886',[5136,5345,9380,10480,10720,12030,12800,15870,16940],2],['50 kopek','50 Kopeks 1896',[6380,6560,11600,12950,13140,14890],2]];
+  for(const [label,name,f,modes] of coins){
+    const e=run(`(()=>{const c=flat.find(x=>x.n.startsWith(${JSON.stringify(name)})),a=ALLOYS[c.a],s=spec({name:c.n,key:c.a,mass:c.m,dia:c.d,rho:rhoOf(c.a),E:a.E,nu:a.nu,plateModel:c.solid||'generic-solid'}),e=screenReading(readingOf(${JSON.stringify(f)}),s,true,3);return {title:resultTitle(e,true),modes:e.fit.best.matches.length,reason:e.reason};})()`);
+    assert.equal(e.title,'Model consistent',label+': '+e.reason);
+    // Morgans B and C: the (4,0) sits within 0.8% of 4× the (2,0), so it is not counted.
+    assert.equal(e.modes,modes,label);
+  }
+});
+
 function readWav(file){
   const b=fs.readFileSync(file);let o=12,fmt,data;
   while(o<b.length){const id=b.toString('ascii',o,o+4),n=b.readUInt32LE(o+4);if(id==='fmt ')fmt={ch:b.readUInt16LE(o+10),sr:b.readUInt32LE(o+12)};if(id==='data')data=b.subarray(o+8,o+8+n);o+=8+n+(n&1);}
@@ -116,19 +156,26 @@ async function analyseFile(file,c){
   const pre=Math.ceil(.06*sr);ctx.args={seg:x.slice(at-pre,at+Math.ceil(.6*sr)),sr,pre,c};
   return run(`analyseInner(args.seg,args.sr,args.c,{triggerDb:18,skipMs:8,crestDb:26,analysisFloorHz:analysisFloor(args.c).hz,upperScan:args.c.plateModel!=='plate'},{kind:'file',contextRate:args.sr,trackRate:null},args.pre)`);
 }
-test('real Morgan (M06, 25.81 g, 37.7 mm, rim 2.40 mm, Pocket Pinger): thin plate needs a third mode, the solid model fits three',async()=>{
+test('real Morgan (M06, 25.81 g, 37.7 mm, rim 2.40 mm, Pocket Pinger): both models fit two modes; the solid model also places the (4,0)',async()=>{
   const dir=path.join(__dirname,'fixtures/morgan-m06'),files=[1,2,3].map(t=>path.join(dir,'tap-'+t+'.wav'));
   const evaluate=async c=>{const strikes=[];for(const f of files)strikes.push(await analyseFile(f,c));ctx.strikes=strikes;ctx.c=c;return run(`(()=>{const r=summarizeStrikes(strikes,3),e=screenReading(r,c,true,3);return {r,e,title:resultTitle(e,true)};})()`);};
   const plate=await evaluate(run(`spec({mass:25.81,dia:37.7,rimThickness:2.4,plateModel:'plate'})`));
-  assert.equal(plate.title,'Primary frequency in band');
+  assert.equal(plate.title,'Model consistent',plate.e.reason);
   assert.equal(plate.e.fit.matchedModeCount,2);
+  assert.match(plate.e.reason,/two distinct modes, including it, fit one shape within 3%/);
   assert.ok(plate.r.strikes.every(s=>!s.peaks.some(p=>p.f>15000)),'the standard detector is unchanged');
   const solid=await evaluate(run(`spec({mass:25.81,dia:37.7,rimThickness:2.4})`));
   assert.equal(solid.title,'Model consistent',solid.e.reason);
   // The (4,0) mode near 17.3 kHz decays in ~0.1 s and is found by the early-window scan in every tap.
   assert.ok(solid.r.strikes.every(s=>s.peaks.some(p=>p.early&&Math.abs(p.f/17310-1)<.005)));
-  assert.equal(JSON.stringify(solid.e.fit.best.matches.map(m=>m.mode)),'[0,2,4]');
+  assert.match(solid.e.reason,/two distinct modes, including it, fit one shape within 1%/);
+  assert.equal(JSON.stringify(solid.e.fit.best.matches.map(m=>m.mode)),'[0,2]');
   assert.ok(solid.e.fit.best.matches.every(m=>Math.abs(m.measured/(m.predicted*solid.e.fit.best.scale)-1)<.005));
+  // At 4.02× the (2,0) that tone is also within 0.8% of its 4th harmonic, so it is shown but never counted;
+  // several of the fitted shapes still predict it within 0.5%.
+  const h4=solid.e.fingerprint.families.find(f=>Math.abs(f.centre/17310-1)<.005);
+  assert.equal(h4.harmonicOrder,4);
+  assert.ok(solid.e.fit.supported.some(x=>Math.abs(h4.centre/(x.geometry.f[4]*x.scale)-1)<.005));
   assert.ok(Math.abs(solid.e.primary.family.centre-4307.6)<1);
 });
 test('the early-window scan finds fast upper modes but never adds a tone below 1.4× the lowest kept tone',async()=>{

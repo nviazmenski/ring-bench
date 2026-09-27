@@ -41,9 +41,11 @@ test('joint fit recovers a sampled geometry from three peaks and their ratios',(
   assert.ok(run('fit.best.residual')<1e-8);
   assert.ok(run('fit.best.ratioResidual')<1e-8);
 });
-test('one or two tones cannot establish material compatibility; altered ratios lose joint support',()=>{
+test('one tone cannot establish material compatibility; two modes can, and altered ratios lose joint support',()=>{
   assert.equal(run('fitGeometryFamily(makeReading([6400]),c).state'),'insufficient');
-  assert.equal(run('fitGeometryFamily(makeReading(g.f.slice(0,2)),c).state'),'insufficient');
+  assert.equal(run('fitGeometryFamily(makeReading(g.f.slice(0,2)),c).state'),'compatible');
+  assert.equal(run('fitGeometryFamily(makeReading(g.f.slice(0,2)),c).tolerance'),.03);
+  assert.notEqual(run('fitGeometryFamily(makeReading([g.f[0],g.f[1]*1.08]),c).state'),'compatible');
   assert.notEqual(run('fitGeometryFamily(makeReading([6400,7100,7900]),c).state'),'compatible');
 });
 test('one observed peak cannot count as two model modes and out-of-bandwidth modes are not evidence',()=>{
@@ -114,19 +116,29 @@ test('above the band, only a pattern that fits as upper modes keeps a missed low
   run(`globalThis.lone=screenReading(makeReading([geometryFamily(c).high*1.6]),c,true);`);
   assert.equal(run('lone.state'),'anomalous');assert.equal(run('resultTitle(lone,true)'),'Primary frequency outside model');
 });
-test('a real plate mode near a whole-number multiple still counts when the fit needs it',()=>{
+test('a tone near a whole-number multiple of a lower tone never counts toward the two-mode minimum',()=>{
   run(`globalThis.mc={mass:26.7296,dia:38.1,rho:rhoOf('ag900'),E:82,nu:.37};globalThis.u=geometryFamily(mc).candidates.find(g=>g.ratio===1);globalThis.hme=screenReading(makeReading([u.f[0],u.f[1],u.f[3]]),mc,true);`);
   // On a flat silver plate (1,1) sits about 4.01x above (2,0), inside the harmonic tolerance.
   assert.equal(run('hme.fingerprint.families[2].harmonicOrder'),4);
-  assert.equal(run('hme.fit.harmonicAssisted'),true);
+  // Two independent modes fit without it, so the fit never relies on it.
+  assert.equal(run('hme.fit.harmonicAssisted'),false);
   assert.equal(run('resultTitle(hme,true)'),'Model consistent');
-  assert.match(run('hme.reason'),/whole-number multiple/);
+  // Alone with its parent it could be a strike overtone: a tone and its own multiple cannot confirm each other.
+  run(`globalThis.overtone=screenReading(makeReading([u.f[0],u.f[3]]),mc,true);`);
+  assert.equal(run('overtone.fit.state'),'insufficient');
+  assert.equal(run('resultTitle(overtone,true)'),'Primary frequency in band');
+  // With an unrelated second tone, the only joint fit is the tone and its multiple: reported, never counted.
+  run(`globalThis.overtone2=screenReading(makeReading([u.f[0],u.f[0]*1.3,u.f[3]]),mc,true);`);
+  assert.equal(run('overtone2.fit.state'),'unresolved');
+  assert.equal(run('overtone2.fit.matchedModeCount'),2);
+  assert.notEqual(run('resultTitle(overtone2,true)'),'Model consistent');
+  assert.match(run('overtone2.reason'),/whole-number multiple of a lower tone; two independent modes are required/);
   // A fit that works without the candidate is never replaced by one that uses it.
   run(`globalThis.strict=fitGeometryFamily(makeReading([...g.f.slice(0,3),g.f[0]*2]),c);`);
   assert.equal(run('strict.state'),'compatible');assert.equal(run('strict.harmonicAssisted'),false);
   assert.ok(run('strict.results.every(r=>!r.harmonicAssisted)'));
 });
-test('Model consistent requires the three-mode fit to include the lowest repeatable resonance',()=>{
+test('Model consistent requires the joint fit to include the lowest repeatable resonance',()=>{
   run(`globalThis.mc={mass:26.7296,dia:38.1,rho:rhoOf('ag900'),E:82,nu:.37};globalThis.g4=geometryFamily(mc).candidates[4];globalThis.lowX=screenReading(makeReading([g4.f[0]*.955,g4.f[0],g4.f[1],g4.f[2]]),mc,true);`);
   assert.equal(run('lowX.fieldPosition'),'compatible');
   assert.equal(run('lowX.fit.state'),'compatible');
@@ -139,9 +151,12 @@ test('an exact strike harmonic is displayed but excluded from modal scoring',()=
   assert.equal(run('sf.envelope.assignments.find(a=>Math.abs(a.family.centre-10817)<1).excludedAsHarmonic'),true);
   assert.notEqual(run('screenReading(sovReading,sc,true).state'),'anomalous');
 });
-test('Pro strict screening needs a coherent three-mode fit for positive compatibility',()=>{
+test('Pro strict screening needs a coherent fit of two or more modes for positive compatibility',()=>{
   assert.equal(run('screenReading(makeReading([g.f[0]]),c,true).state'),'evidence');
+  assert.equal(run('screenReading(makeReading(g.f.slice(0,2)),c,true).state'),'compatible');
+  assert.match(run('screenReading(makeReading(g.f.slice(0,2)),c,true).reason'),/two distinct modes, including it, fit one shape within 3%/);
   assert.equal(run('screenReading(makeReading(g.f.slice(0,3)),c,true).state'),'compatible');
+  assert.match(run('screenReading(makeReading(g.f.slice(0,3)),c,true).reason'),/three distinct modes/);
   assert.equal(run('screenReading(makeReading([1000]),c,true).state'),'anomalous');
 });
 test('an independently verified unresolved pattern can be stored as a modal fingerprint',()=>{
@@ -169,8 +184,14 @@ test('a close-frequency group never supplies two independent joint assignments',
 
 test('evidence labels distinguish missing modes, unresolved identity and an outside-model result',()=>{
   run(`globalThis.coinR=flat.find(x=>x.n.startsWith('1 Rouble 1886'));globalThis.coinRC={name:coinR.n,key:coinR.a,mass:coinR.m,dia:coinR.d,rho:rhoOf(coinR.a),E:ALLOYS[coinR.a].E,nu:ALLOYS[coinR.a].nu};globalThis.r4=makeReading([5210,5428,12130,12165]);globalThis.e4=screenReading(r4,coinRC,true);`);
+  // A real 1-rouble recording (split lowest pair, (3,0) near 12.1 kHz): two independent modes now make a model fit.
   assert.equal(run('e4.fit.matchedModeCount'),2);
-  assert.equal(run('resultTitle(e4,true)'),'Primary frequency in band');
+  assert.equal(run('resultTitle(e4,true)'),'Model consistent');
+  // A lone in-band tone is a missing-mode result, not a failure.
+  run(`globalThis.e1=screenReading(makeReading([5210]),coinRC,true);`);
+  assert.equal(run('e1.fit.matchedModeCount'),0);
+  assert.equal(run('resultTitle(e1,true)'),'Primary frequency in band');
+  assert.match(run('e1.reason'),/explains 0 distinct mode\(s\); two are required/);
   assert.equal(run('resultTitle(screenReading(makeReading([1000]),coinRC,true),true)'),'Primary frequency outside model');
   assert.equal(run('resultTitle({state:"evidence",diagnostic:"model-unresolved"},true)'),'Model fit unresolved');
   assert.equal(run('resultTitle({state:"inconclusive"},true)'),'Inconclusive');

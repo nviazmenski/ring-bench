@@ -69,7 +69,7 @@ test('separation uses captured duration, not a percentage or zero-padding bin sp
   assert.equal(count,1);
 });
 
-test('unverified user WAV regression: preserve four tones without manufacturing a three-mode pass',{
+test('unverified user WAV regression: preserve four tones; the split pair and (3,0) make a two-mode Pro fit',{
   skip:!process.env.RINGBENCH_SAMPLE_DIR&&'Set RINGBENCH_SAMPLE_DIR to the local user recordings; audio is not shipped with the app.'
 },async()=>{
   const files=fs.readdirSync(process.env.RINGBENCH_SAMPLE_DIR).filter(n=>/ringbench-tap-[123]-.*\.wav$/.test(n)).sort();
@@ -82,7 +82,7 @@ test('unverified user WAV regression: preserve four tones without manufacturing 
     assert.equal(e.fingerprint.tracks.length,4);
     assert.ok(e.fingerprint.tracks.every((t,i)=>Math.abs(t.f-[5210,5428,12130,12165][i])<3));
     assert.equal(e.fit.matchedModeCount,2);
-    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Primary frequency in band':'PASS');
+    assert.equal(a.e.resultTitle.textContent,edition==='pro'?'Model consistent':'PASS');
     assert.equal(e.fingerprint.envelope.outside.length,0);
   }
 });
