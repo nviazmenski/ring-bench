@@ -11,7 +11,7 @@ This repository holds both editions. They share the detector, the catalogue and 
 
 Neither edition gives any result until every required tap is recorded.
 
-**Experimental: 3D solid model (Pro).** The thin-plate model overpredicts thick coins, more for higher modes: about 2% on the lowest mode of a Morgan, 4% on (3,0) and 7% on (4,0). Pro can instead use a 3D elastic model of the coin's cross-section: die basin, relief, inner border and rim, with the rim thickness from your calipers. The Morgan has its own cross-section family; every other coin uses a generic one. With that model selected it also scores split tone pairs at their centroid and skips modes a centre support damps. It searches the first 100 ms of each tap for fast-decaying upper modes. It is opt-in, applies to the fakes in the construction screen too, and has been tested on one recorded specimen and a first battery of seven coins read from screenshots; see [MODEL.md](MODEL.md), "3D solid model" and "Two-mode rule".
+**Experimental: 3D solid model (Pro).** The thin-plate model overpredicts thick coins, more for higher modes: about 2% on the lowest mode of a Morgan, 4% on (3,0) and 7% on (4,0). Pro can instead use a 3D elastic model of the coin's cross-section: die basin, relief, inner border and rim, with the rim thickness from your calipers. The Morgan has its own cross-section family; every other coin uses a generic one. With that model selected it also scores split tone pairs at their centroid and skips modes a centre support damps. It searches the first 100 ms of each tap for fast-decaying upper modes. It is opt-in, applies to the fakes in the construction screen too, and has been tested on seven coins their owner reports as genuine, read from screenshots; one of them, a Morgan (M06), also has recordings. See [MODEL.md](MODEL.md), "3D solid model" and "Two-mode rule".
 
 **Fakes the pitch can rule out.** For gold and silver coins, both editions also list specific counterfeit constructions made to the coin's weight and diameter: the fakes that pass a scale and calipers. The list covers plated tungsten or molybdenum, a tungsten or molybdenum core in a precious-metal shell, underfine metal and common base metals. Before a test it shows which of them the pitch can separate from a genuine coin, and by how much. After a complete test it says which ones this coin's lowest repeatable tone rules out, and which remain possible, such as underfine metal or a thick shell over a tungsten core. It is modelled from handbook material ranges, not yet validated against real fakes. [MODEL.md](MODEL.md) has the derivation, assumptions and limits; [CHANGELOG.md](CHANGELOG.md) has the release history.
 
@@ -33,11 +33,11 @@ tests/           node:test suites (synthetic audio, model, verdicts, release hyg
 scripts/         build.mjs (stage an edition), serve.mjs (local server), solid-tables.mjs (generate or check the solid tables)
 research/solid/  Python validation and research scripts behind MODEL.md's "3D solid model" (not used by the app)
 hosting/         per-edition hosting project configuration
-retired-site/    the retirement page prepared for the old GitHub Pages address
-index.html       local launcher for both editions
+retired-site/    retirement page prepared for the old single-file app on GitHub Pages (never deployed)
+index.html       launcher for both editions (local, and the GitHub Pages landing page)
 ```
 
-Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact; tags `lite-3.1` … `lite-3.6` and `pro-4.3` … `pro-4.9` mark every release to that date; later releases are tagged the same way.
+Until September 26, 2026, Lite and Pro lived in two repositories that each carried both editions. They were merged here with both histories intact. Tags `lite-X.Y` and `pro-X.Y` mark every release from Lite 3.1 and Pro 4.3 on; before the merge, the `lite-` tags are on the Lite repository's history and the `pro-` tags on Pro's.
 
 ## Development
 
@@ -53,11 +53,13 @@ npm run solid:tables # regenerate pro/solid-tables.js (about an hour on 4 cores)
 
 Microphones need localhost or HTTPS, so use `npm run serve` for live taps; pages opened from disk can still load recordings. Edit the source here, never a staged copy.
 
-**Releasing.** Bump the edition's build identifier in its entrypoint (`lite/lite.js` or `pro/pro.js`) and its `sw.js` `VERSION` together; `tests/release.test.cjs` fails if they differ or if the offline cache misses a file the page loads. A change to `shared/` affects both editions, so bump both. Add a CHANGELOG entry and tag the commit (`lite-X.Y`, `pro-X.Y`).
+**Releasing.** Bump the edition's build identifier in its entrypoint (`lite/lite.js` or `pro/pro.js`) and its `sw.js` `VERSION` together; `tests/release.test.cjs` fails if they differ or if the offline cache misses a file the page loads. A change to `shared/` affects both editions, so bump both. Add a CHANGELOG entry, tag the release commit (`lite-X.Y`, `pro-X.Y`) and push the tags by name (`git push origin lite-X.Y pro-X.Y`): a plain `git push` does not send tags.
 
 **Deploying.** Each edition has its own hosting project (`hosting/lite.json`, `hosting/pro.json`), and both publish the `dist/` directory. `npm run stage:lite` or `npm run stage:pro` builds that edition into `dist/` and points the untracked `.openai/hosting.json` at its project; then publish. Stage and publish one edition at a time. Current private sites: [Lite](https://ringbench-lite.ds5kyf92rk.chatgpt.site) · [Pro](https://ringbench-pro.ds5kyf92rk.chatgpt.site).
 
-**Old deployments.** The GitHub Pages site and the `bubbling-goulash` sites predate these releases and may still serve old verdict logic. `retired-site/` holds the retirement page prepared for the GitHub Pages address; it was never published there because GitHub rejected the repository write.
+**GitHub Pages.** The repository is public, and GitHub Pages republishes the root of `main` after every push, so the current editions are public at [nviazmenski.github.io/ring-bench](https://nviazmenski.github.io/ring-bench/): the launcher at the root, Lite at `lite/` and Pro at `pro/`. Unlike the private sites, they need no sign-in. Browser storage is per site, so references and recordings saved there don't appear on the private sites. To stop publishing, turn Pages off in the repository settings.
+
+**Old deployments.** The `bubbling-goulash` sites predate these releases and may still serve old verdict logic. The Pages address used to serve the original single-file app. `retired-site/` holds a page and service worker written to retire it. They were never deployed, because GitHub rejected the repository write at the time. Nothing has replaced that app's service worker, so a browser that installed it may still show it. The retirement page also links to the `bubbling-goulash` sites rather than the current ones.
 
 ## Reference collection
 
